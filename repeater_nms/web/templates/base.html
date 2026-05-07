@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ page_title }}</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f7fb;
+        --panel: #ffffff;
+        --border: #d7dde8;
+        --text: #1f2937;
+        --muted: #526071;
+        --accent: #0f4c81;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        color: var(--text);
+        background: linear-gradient(180deg, #eef3f9 0%, var(--bg) 100%);
+      }
+      .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 8px 24px rgba(18, 38, 63, 0.05);
+      }
+      h1, h2, p { margin-top: 0; }
+      .meta {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .tag {
+        display: inline-block;
+        margin-right: 8px;
+        margin-bottom: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #e8f1fb;
+        color: var(--accent);
+        font-size: 13px;
+      }
+      code {
+        background: #f2f4f8;
+        padding: 2px 6px;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>
+

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="panel">
+    <h1>{{ page_title }}</h1>
+    <p class="meta">阶段1最小骨架已就绪，后续阶段将补充登录、设备管理、Trap 实时页面与告警中心。</p>
+    <div>
+      <span class="tag">Flask Web Skeleton</span>
+      <span class="tag">Collector Skeleton</span>
+      <span class="tag">RX10 MIB Docs</span>
+    </div>
+    <h2>当前状态</h2>
+    <p>应用名：<code>{{ app_name }}</code></p>
+    <p>健康检查：<code>/healthz</code></p>
+  </section>
+{% endblock %}
+
