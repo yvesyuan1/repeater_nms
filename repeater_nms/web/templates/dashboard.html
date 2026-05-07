@@ -34,12 +34,13 @@
           <th>APS 活跃侧</th>
           <th>APS 状态</th>
           <th>DFP 活跃侧</th>
+          <th>操作</th>
         </tr>
       </thead>
       <tbody>
         {% for item in device_overviews %}
           <tr>
-            <td><a href="{{ url_for('web.device_detail', device_id=item.device.id) }}">{{ item.device.name }}</a></td>
+            <td>{{ item.device.name }}</td>
             <td>{{ item.device.ip }}</td>
             <td>{{ item.profile_title }}</td>
             <td><span class="tag {{ item.overview_status }}">{{ item.overview_status_label }}</span></td>
@@ -58,9 +59,12 @@
             <td>{{ item.aps_active }}</td>
             <td title="{{ item.aps_stat_text or '' }}">{{ item.aps_stat }}</td>
             <td>{{ item.dfp_active }}</td>
+            <td>
+              <a class="button secondary" href="{{ url_for('web.device_detail', device_id=item.device.id) }}">查看详情</a>
+            </td>
           </tr>
         {% else %}
-          <tr><td colspan="13">暂无设备。</td></tr>
+          <tr><td colspan="14">暂无设备。</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -77,6 +81,7 @@
           <th>告警</th>
           <th>级别</th>
           <th>状态</th>
+          <th>操作</th>
         </tr>
       </thead>
       <tbody>
@@ -88,9 +93,10 @@
             <td>{{ item.alarm_id or item.trap_name_label }}</td>
             <td><span class="tag {{ item.severity or '' }}">{{ item.severity_label }}</span></td>
             <td><span class="tag {{ item.status or '' }}">{{ item.status_label }}</span></td>
+            <td><a class="button secondary" href="{{ item.detail_url }}">查看 Trap</a></td>
           </tr>
         {% else %}
-          <tr><td colspan="6">暂无 Trap 数据。</td></tr>
+          <tr><td colspan="7">暂无 Trap 数据。</td></tr>
         {% endfor %}
       </tbody>
     </table>

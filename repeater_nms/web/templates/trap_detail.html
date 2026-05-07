@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="toolbar">
+    <a class="button secondary" href="{{ url_for('web.traps') }}">返回 Trap 列表</a>
+    {% if device %}
+      <a class="button secondary" href="{{ url_for('web.device_detail', device_id=device.id) }}">查看设备详情</a>
+    {% endif %}
+  </div>
+
+  <div class="grid cards">
+    <div class="card"><div class="label">设备</div><div class="value" style="font-size:20px;">{{ payload.device_name }}</div></div>
+    <div class="card"><div class="label">设备模板</div><div class="value" style="font-size:20px;">{{ payload.profile_title }}</div></div>
+    <div class="card"><div class="label">接收时间</div><div class="value" style="font-size:18px;">{{ payload.received_at }}</div></div>
+    <div class="card"><div class="label">PDU ID</div><div class="value" style="font-size:18px;">{{ payload.pdu_id or '-' }}</div></div>
+  </div>
+
+  <section class="card" style="margin-top:18px;">
+    <h3 style="margin-top:0;">Trap 基本信息</h3>
+    <table>
+      <tbody>
+        <tr><th>来源 IP</th><td>{{ trap.source_ip }}</td><th>来源端口</th><td>{{ trap.source_port or '-' }}</td></tr>
+        <tr><th>本地监听</th><td>{{ trap.local_ip or '-' }}</td><th>本地端口</th><td>{{ trap.local_port or '-' }}</td></tr>
+        <tr><th>Trap 类型</th><td>{{ payload.trap_name_label or payload.trap_type_label }}</td><th>Trap OID</th><td>{{ trap.trap_oid or '-' }}</td></tr>
+        <tr><th>级别</th><td>{{ payload.severity_label }}</td><th>状态</th><td>{{ payload.status_label }}</td></tr>
+        <tr><th>对象</th><td>{{ trap.alarm_obj or '-' }}</td><th>告警 ID</th><td>{{ trap.alarm_id or '-' }}</td></tr>
+        <tr><th>设备原始时间</th><td>{{ trap.device_alarm_time_raw or '-' }}</td><th>sysUpTime</th><td>{{ trap.sys_uptime or '-' }}</td></tr>
+        <tr><th>解析状态</th><td>{{ trap.parse_status }}</td><th>解析错误</th><td>{{ trap.parse_error or '-' }}</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card" style="margin-top:18px;">
+    <h3 style="margin-top:0;">中文摘要</h3>
+    <div>{{ payload.summary_zh }}</div>
+  </section>
+
+  {% if raw_varbinds %}
+    <section class="card" style="margin-top:18px;">
+      <h3 style="margin-top:0;">Varbinds 原始字段</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>OID</th>
+            <th>名称</th>
+            <th>值</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in raw_varbinds %}
+            <tr>
+              <td>{{ item.oid or '-' }}</td>
+              <td>{{ item.name or '-' }}</td>
+              <td>{{ item.value or '-' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  {% endif %}
+
+  <section class="card" style="margin-top:18px;">
+    <h3 style="margin-top:0;">翻译结果 JSON</h3>
+    <pre style="white-space:pre-wrap;overflow:auto;">{{ translated_json_pretty }}</pre>
+  </section>
+
+  <section class="card" style="margin-top:18px;">
+    <h3 style="margin-top:0;">原始 Trap JSON</h3>
+    <pre style="white-space:pre-wrap;overflow:auto;">{{ raw_json_pretty }}</pre>
+  </section>
+{% endblock %}

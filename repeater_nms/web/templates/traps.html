@@ -45,6 +45,7 @@
         <th>设备原始时间</th>
         <th>PDU ID</th>
         <th>中文说明</th>
+        <th>操作</th>
       </tr>
     </thead>
     <tbody id="trap-body">
@@ -61,9 +62,10 @@
           <td>{{ item.device_alarm_time_raw or '-' }}</td>
           <td>{{ item.pdu_id or '-' }}</td>
           <td>{{ item.summary_zh }}</td>
+          <td><a class="button secondary" href="{{ item.detail_url }}">查看详情</a></td>
         </tr>
       {% else %}
-        <tr><td colspan="11">暂无 Trap 数据。</td></tr>
+        <tr><td colspan="12">暂无 Trap 数据。</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -110,8 +112,9 @@
         <td>${renderCell(payload.device_alarm_time_raw)}</td>
         <td>${renderCell(payload.pdu_id)}</td>
         <td>${renderCell(payload.summary_zh)}</td>
+        <td><a class="button secondary" href="/traps/${payload.id}">查看详情</a></td>
       `;
-      const emptyRow = trapBody.querySelector("tr td[colspan='11']");
+      const emptyRow = trapBody.querySelector("tr td[colspan='12']");
       if (emptyRow) {
         emptyRow.parentElement.remove();
       }

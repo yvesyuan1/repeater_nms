@@ -14,6 +14,41 @@
     </label>
   </form>
 
+  {% if can_manage_templates %}
+    <section class="card" style="margin-bottom:18px;">
+      <h3 style="margin-top:0;">新建设备模板</h3>
+      <form method="post" action="{{ url_for('web.create_mib_profile') }}" class="form-grid">
+        <label>
+          <div class="muted">模板编码</div>
+          <input type="text" name="profile_code" placeholder="例如：vendor_model_v1">
+        </label>
+        <label>
+          <div class="muted">厂家</div>
+          <input type="text" name="vendor" placeholder="例如：博汇">
+        </label>
+        <label>
+          <div class="muted">型号</div>
+          <input type="text" name="model" placeholder="例如：RX10">
+        </label>
+        <label>
+          <div class="muted">类别</div>
+          <input type="text" name="category" value="中继器">
+        </label>
+        <label>
+          <div class="muted">解析器键</div>
+          <input type="text" name="parser_key" value="bohui_rx10">
+        </label>
+        <label class="full">
+          <div class="muted">说明</div>
+          <textarea name="description" placeholder="备注这个模板的适用范围、协议差异或后续接入说明。"></textarea>
+        </label>
+        <div class="full">
+          <button type="submit">创建设备模板</button>
+        </div>
+      </form>
+    </section>
+  {% endif %}
+
   {% if selected_profile %}
     <div class="grid cards">
       <div class="card">
@@ -30,6 +65,37 @@
       </div>
     </div>
 
+    {% if can_manage_templates %}
+      <section class="card" style="margin-top:18px;">
+        <h3 style="margin-top:0;">模板配置</h3>
+        <form method="post" action="{{ url_for('web.update_mib_profile', profile_code=selected_profile.profile_code) }}" class="form-grid">
+          <label>
+            <div class="muted">厂家</div>
+            <input type="text" name="vendor" value="{{ selected_profile.vendor }}">
+          </label>
+          <label>
+            <div class="muted">型号</div>
+            <input type="text" name="model" value="{{ selected_profile.model }}">
+          </label>
+          <label>
+            <div class="muted">类别</div>
+            <input type="text" name="category" value="{{ selected_profile.category }}">
+          </label>
+          <label>
+            <div class="muted">解析器键</div>
+            <input type="text" name="parser_key" value="{{ selected_profile.parser_key }}">
+          </label>
+          <label class="full">
+            <div class="muted">说明</div>
+            <textarea name="description">{{ selected_profile.description or '' }}</textarea>
+          </label>
+          <div class="full">
+            <button type="submit">保存模板配置</button>
+          </div>
+        </form>
+      </section>
+    {% endif %}
+
     <section class="card" style="margin-top:18px;">
       <h3 style="margin-top:0;">采集策略</h3>
       <table>
@@ -40,9 +106,15 @@
             <th>节点名</th>
             <th>OID</th>
             <th>采集周期</th>
+            <th>启用</th>
+            <th>保存历史</th>
             <th>首页展示</th>
             <th>卡片展示</th>
             <th>判断规则</th>
+            <th>正常值集合</th>
+            <th>不匹配状态</th>
+            <th>说明</th>
+            {% if can_manage_templates %}<th>操作</th>{% endif %}
           </tr>
         </thead>
         <tbody>
@@ -52,19 +124,37 @@
               <td>{{ item.node_name_zh or '-' }}</td>
               <td>{{ item.node_name }}</td>
               <td>{{ item.oid }}</td>
-              <td>{{ item.poll_interval_seconds }} 秒</td>
-              <td>{{ '是' if item.show_in_overview else '-' }}</td>
-              <td>{{ '是' if item.show_in_device_card else '-' }}</td>
-              <td title="{{ item.notes or '' }}">
-                {% if item.judge_type == 'enum_equals' %}
-                  枚举值命中正常集合
-                {% else %}
-                  未配置
-                {% endif %}
+              <td><input form="strategy-form-{{ item.id }}" type="number" min="5" step="1" name="poll_interval_seconds" value="{{ item.poll_interval_seconds }}"></td>
+              <td><input form="strategy-form-{{ item.id }}" type="checkbox" name="is_enabled" {% if item.is_enabled %}checked{% endif %}></td>
+              <td><input form="strategy-form-{{ item.id }}" type="checkbox" name="save_history" {% if item.save_history %}checked{% endif %}></td>
+              <td><input form="strategy-form-{{ item.id }}" type="checkbox" name="show_in_overview" {% if item.show_in_overview %}checked{% endif %}></td>
+              <td><input form="strategy-form-{{ item.id }}" type="checkbox" name="show_in_device_card" {% if item.show_in_device_card %}checked{% endif %}></td>
+              <td>
+                <select form="strategy-form-{{ item.id }}" name="judge_type">
+                  <option value="" {% if not item.judge_type %}selected{% endif %}>未配置</option>
+                  <option value="enum_equals" {% if item.judge_type == 'enum_equals' %}selected{% endif %}>枚举值命中正常集合</option>
+                </select>
               </td>
+              <td><input form="strategy-form-{{ item.id }}" type="text" name="expected_value_text" value="{{ item.expected_value_text or '' }}" placeholder="逗号分隔"></td>
+              <td>
+                <select form="strategy-form-{{ item.id }}" name="health_on_mismatch">
+                  <option value="" {% if not item.health_on_mismatch %}selected{% endif %}>未设置</option>
+                  {% for state in ['warning', 'major', 'critical', 'normal'] %}
+                    <option value="{{ state }}" {% if item.health_on_mismatch == state %}selected{% endif %}>{{ state|health_label }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><input form="strategy-form-{{ item.id }}" type="text" name="notes" value="{{ item.notes or '' }}" placeholder="策略说明"></td>
+              {% if can_manage_templates %}
+                <td>
+                  <form id="strategy-form-{{ item.id }}" method="post" action="{{ url_for('web.update_polling_strategy', strategy_id=item.id) }}">
+                  </form>
+                  <button type="submit" form="strategy-form-{{ item.id }}">保存</button>
+                </td>
+              {% endif %}
             </tr>
           {% else %}
-            <tr><td colspan="8">暂无采集策略。</td></tr>
+            <tr><td colspan="{{ 14 if can_manage_templates else 13 }}">暂无采集策略。</td></tr>
           {% endfor %}
         </tbody>
       </table>

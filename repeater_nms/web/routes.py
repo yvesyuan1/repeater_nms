@@ -123,6 +123,24 @@ def _metric_value(row: DeviceLatestValue | None, *, prefer_enum: bool = False) -
     return "-"
 
 
+def _bool_form(name: str) -> bool:
+    return request.form.get(name) == "on"
+
+
+def _split_expected_values(text: str | None) -> list[str]:
+    raw = (text or "").replace("，", ",")
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _json_pretty(value: Any) -> str:
+    if value is None:
+        return "-"
+    try:
+        return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True)
+    except Exception:
+        return str(value)
+
+
 def _trap_payload(item: TrapEvent, device: Device | None, profile: DeviceProfile | None) -> dict[str, Any]:
     device_name = device.name if device else "未知设备"
     summary_zh = build_trap_summary(
@@ -158,6 +176,7 @@ def _trap_payload(item: TrapEvent, device: Device | None, profile: DeviceProfile
         "raw_summary": item.raw_summary,
         "summary_zh": summary_zh,
         "translated_json": item.translated_json,
+        "detail_url": url_for("web.trap_detail", trap_id=item.id),
     }
 
 
@@ -593,8 +612,118 @@ def mib_nodes():
             strategies=strategies,
             enums=enums,
             alarm_rules=alarm_rules,
+            can_manage_templates=current_user.role == "admin",
         ),
     )
+
+
+@web_bp.post("/mib-nodes/profiles")
+@login_required
+@role_required("admin")
+def create_mib_profile():
+    session = get_db_session()
+    profile_code = request.form.get("profile_code", "").strip()
+    vendor = request.form.get("vendor", "").strip()
+    model = request.form.get("model", "").strip()
+    category = request.form.get("category", "").strip() or "中继器"
+    parser_key = request.form.get("parser_key", "").strip() or DEFAULT_PROFILE_CODE
+    description = request.form.get("description", "").strip() or None
+
+    if not profile_code or not vendor or not model:
+        flash("模板编码、厂家和型号不能为空。", "error")
+        return redirect(url_for("web.mib_nodes"))
+    if session.execute(select(DeviceProfile).where(DeviceProfile.profile_code == profile_code)).scalar_one_or_none():
+        flash("模板编码已存在。", "error")
+        return redirect(url_for("web.mib_nodes", profile_code=profile_code))
+
+    profile = DeviceProfile(
+        profile_code=profile_code,
+        vendor=vendor,
+        model=model,
+        category=category,
+        parser_key=parser_key,
+        description=description,
+        is_builtin=False,
+    )
+    session.add(profile)
+    session.flush()
+    log_operation(
+        session,
+        user_id=current_user.id,
+        username_snapshot=current_user.username,
+        action="create_device_profile",
+        target_type="device_profile",
+        target_id=str(profile.id),
+        details_json={"profile_code": profile.profile_code, "vendor": vendor, "model": model},
+    )
+    session.commit()
+    flash("设备模板已创建。", "success")
+    return redirect(url_for("web.mib_nodes", profile_code=profile.profile_code))
+
+
+@web_bp.post("/mib-nodes/profiles/<profile_code>")
+@login_required
+@role_required("admin")
+def update_mib_profile(profile_code: str):
+    session = get_db_session()
+    profile = session.execute(select(DeviceProfile).where(DeviceProfile.profile_code == profile_code)).scalar_one_or_none()
+    if profile is None:
+        flash("设备模板不存在。", "error")
+        return redirect(url_for("web.mib_nodes"))
+
+    profile.vendor = request.form.get("vendor", profile.vendor).strip() or profile.vendor
+    profile.model = request.form.get("model", profile.model).strip() or profile.model
+    profile.category = request.form.get("category", profile.category).strip() or profile.category
+    profile.parser_key = request.form.get("parser_key", profile.parser_key).strip() or profile.parser_key
+    profile.description = request.form.get("description", "").strip() or None
+    log_operation(
+        session,
+        user_id=current_user.id,
+        username_snapshot=current_user.username,
+        action="update_device_profile",
+        target_type="device_profile",
+        target_id=str(profile.id),
+        details_json={"profile_code": profile.profile_code},
+    )
+    session.commit()
+    flash("设备模板配置已更新。", "success")
+    return redirect(url_for("web.mib_nodes", profile_code=profile.profile_code))
+
+
+@web_bp.post("/mib-nodes/strategies/<int:strategy_id>")
+@login_required
+@role_required("admin")
+def update_polling_strategy(strategy_id: int):
+    session = get_db_session()
+    strategy = session.get(PollingStrategy, strategy_id)
+    if strategy is None:
+        flash("采集策略不存在。", "error")
+        return redirect(url_for("web.mib_nodes"))
+
+    expected_value_text = request.form.get("expected_value_text", "").strip()
+    judge_type = request.form.get("judge_type", "").strip() or None
+    strategy.poll_interval_seconds = max(5, int(request.form.get("poll_interval_seconds", strategy.poll_interval_seconds) or strategy.poll_interval_seconds))
+    strategy.is_enabled = _bool_form("is_enabled")
+    strategy.save_history = _bool_form("save_history")
+    strategy.show_in_overview = _bool_form("show_in_overview")
+    strategy.show_in_device_card = _bool_form("show_in_device_card")
+    strategy.judge_type = judge_type
+    strategy.expected_value_text = expected_value_text or None
+    strategy.expected_values_json = _split_expected_values(expected_value_text) if expected_value_text else None
+    strategy.health_on_mismatch = request.form.get("health_on_mismatch", "").strip() or None
+    strategy.notes = request.form.get("notes", "").strip() or None
+    log_operation(
+        session,
+        user_id=current_user.id,
+        username_snapshot=current_user.username,
+        action="update_polling_strategy",
+        target_type="polling_strategy",
+        target_id=str(strategy.id),
+        details_json={"profile_code": strategy.profile_code, "node_name": strategy.node_name},
+    )
+    session.commit()
+    flash("采集策略已更新。", "success")
+    return redirect(url_for("web.mib_nodes", profile_code=strategy.profile_code))
 
 
 @web_bp.get("/traps")
@@ -635,6 +764,36 @@ def traps():
             filter_severity=severity,
             filter_device_id=device_id,
             filter_keyword=keyword,
+        ),
+    )
+
+
+@web_bp.get("/traps/<int:trap_id>")
+@login_required
+def trap_detail(trap_id: int):
+    session = get_db_session()
+    trap = session.get(TrapEvent, trap_id)
+    if trap is None:
+        return Response("trap not found", status=404)
+    device = session.get(Device, trap.device_id) if trap.device_id else None
+    profile = session.execute(select(DeviceProfile).where(DeviceProfile.profile_code == (trap.profile_code or DEFAULT_PROFILE_CODE))).scalar_one_or_none()
+    payload = _trap_payload(trap, device, profile)
+    raw_varbinds = []
+    if isinstance(trap.raw_json, dict):
+        maybe_varbinds = trap.raw_json.get("varbinds")
+        if isinstance(maybe_varbinds, list):
+            raw_varbinds = maybe_varbinds
+    return render_template(
+        "trap_detail.html",
+        **_base_context(
+            page_name=f"Trap 详情 - {trap.id}",
+            trap=trap,
+            payload=payload,
+            device=device,
+            profile=profile,
+            raw_json_pretty=_json_pretty(trap.raw_json),
+            translated_json_pretty=_json_pretty(trap.translated_json),
+            raw_varbinds=raw_varbinds,
         ),
     )
 

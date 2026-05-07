@@ -81,7 +81,7 @@
     <section class="card">
       <h3 style="margin-top:0;">最近 Trap</h3>
       <table>
-        <thead><tr><th>时间</th><th>PDU</th><th>对象</th><th>告警</th><th>级别</th><th>状态</th></tr></thead>
+        <thead><tr><th>时间</th><th>PDU</th><th>对象</th><th>告警</th><th>级别</th><th>状态</th><th>操作</th></tr></thead>
         <tbody>
           {% for item in recent_traps %}
             <tr>
@@ -91,9 +91,10 @@
               <td>{{ item.alarm_id or item.trap_name_label }}</td>
               <td><span class="tag {{ item.severity or '' }}">{{ item.severity_label }}</span></td>
               <td><span class="tag {{ item.status or '' }}">{{ item.status_label }}</span></td>
+              <td><a class="button secondary" href="{{ item.detail_url }}">查看详情</a></td>
             </tr>
           {% else %}
-            <tr><td colspan="6">暂无 Trap。</td></tr>
+            <tr><td colspan="7">暂无 Trap。</td></tr>
           {% endfor %}
         </tbody>
       </table>
