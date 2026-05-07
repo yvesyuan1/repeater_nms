@@ -7,7 +7,19 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from repeater_nms.db.init_db import initialize_database
-from repeater_nms.db.models import ActiveAlarm, AlarmEvent, Device, OperationLog, PopupNotification, TrapEvent
+from repeater_nms.db.models import (
+    ActiveAlarm,
+    AlarmEvent,
+    AlarmRule,
+    Device,
+    DeviceProfile,
+    MibEnum,
+    MibNode,
+    OperationLog,
+    PollingStrategy,
+    PopupNotification,
+    TrapEvent,
+)
 from repeater_nms.db.session import reset_engine_cache, session_scope
 from repeater_nms.web import create_app
 
@@ -195,3 +207,210 @@ def test_sse_endpoint_headers(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.mimetype == "text/event-stream"
     assert b"retry:" in first_chunk
+
+
+def test_template_crud_actions(tmp_path: Path) -> None:
+    app, database_url = _build_app(tmp_path)
+    client = app.test_client()
+    _login(client)
+
+    create_profile = client.post(
+        "/mib-nodes/profiles",
+        data={
+            "profile_code": "custom_demo",
+            "vendor": "演示厂家",
+            "model": "演示型号",
+            "category": "中继器",
+            "parser_key": "bohui_rx10",
+            "description": "模板说明",
+        },
+        follow_redirects=True,
+    )
+    assert create_profile.status_code == 200
+    assert "custom_demo".encode("utf-8") in create_profile.data
+
+    create_node = client.post(
+        "/mib-nodes/nodes",
+        data={
+            "profile_code": "custom_demo",
+            "oid": "1.3.6.1.4.1.42669.9.1",
+            "name": "demoNode",
+            "name_zh": "演示节点",
+            "category": "demo",
+            "category_zh": "演示",
+            "access": "read-only",
+            "data_type": "Integer",
+            "enum_name": "DEMO_ENUM",
+            "unit": "%",
+            "overview_order": "10",
+            "is_pollable": "on",
+            "description": "演示节点说明",
+        },
+        follow_redirects=True,
+    )
+    assert create_node.status_code == 200
+
+    create_enum = client.post(
+        "/mib-nodes/enums",
+        data={
+            "profile_code": "custom_demo",
+            "enum_name": "DEMO_ENUM",
+            "code": "1",
+            "label": "ok",
+            "description": "正常",
+        },
+        follow_redirects=True,
+    )
+    assert create_enum.status_code == 200
+
+    create_strategy = client.post(
+        "/mib-nodes/strategies",
+        data={
+            "profile_code": "custom_demo",
+            "node_name": "demoNode",
+            "node_name_zh": "演示节点",
+            "oid": "1.3.6.1.4.1.42669.9.1",
+            "category": "demo",
+            "poll_interval_seconds": "30",
+            "display_order": "5",
+            "is_enabled": "on",
+            "save_history": "on",
+            "show_in_overview": "on",
+            "judge_type": "value_equals",
+            "expected_value_text": "1",
+            "health_on_mismatch": "major",
+            "notes": "首页核心指标",
+        },
+        follow_redirects=True,
+    )
+    assert create_strategy.status_code == 200
+
+    create_rule = client.post(
+        "/mib-nodes/alarm-rules",
+        data={
+            "profile_code": "custom_demo",
+            "alarm_id": "DEMO_ALARM",
+            "default_severity": "major",
+            "category": "Demo",
+            "should_create_active": "on",
+            "should_popup": "on",
+            "description": "演示告警",
+        },
+        follow_redirects=True,
+    )
+    assert create_rule.status_code == 200
+
+    engine = create_engine(database_url)
+    with Session(engine) as session:
+        profile = session.scalar(select(DeviceProfile).where(DeviceProfile.profile_code == "custom_demo"))
+        node = session.scalar(select(MibNode).where(MibNode.profile_code == "custom_demo", MibNode.name == "demoNode"))
+        enum_item = session.scalar(select(MibEnum).where(MibEnum.profile_code == "custom_demo", MibEnum.enum_name == "DEMO_ENUM"))
+        strategy = session.scalar(select(PollingStrategy).where(PollingStrategy.profile_code == "custom_demo", PollingStrategy.node_name == "demoNode"))
+        rule = session.scalar(select(AlarmRule).where(AlarmRule.profile_code == "custom_demo", AlarmRule.alarm_id == "DEMO_ALARM"))
+        assert profile is not None
+        assert node is not None
+        assert enum_item is not None
+        assert strategy is not None
+        assert rule is not None
+        node_id = node.id
+        enum_id = enum_item.id
+        strategy_id = strategy.id
+        rule_id = rule.id
+
+    update_profile = client.post(
+        "/mib-nodes/profiles/custom_demo",
+        data={
+            "vendor": "修改厂家",
+            "model": "修改型号",
+            "category": "综合网管",
+            "parser_key": "custom_demo",
+            "description": "更新说明",
+        },
+        follow_redirects=True,
+    )
+    assert update_profile.status_code == 200
+
+    update_node = client.post(
+        f"/mib-nodes/nodes/{node_id}",
+        data={
+            "oid": "1.3.6.1.4.1.42669.9.2",
+            "name": "demoNodeRenamed",
+            "name_zh": "演示节点已更新",
+            "category": "demo",
+            "category_zh": "演示",
+            "access": "read-write",
+            "data_type": "String",
+            "enum_name": "DEMO_ENUM",
+            "unit": "ms",
+            "overview_order": "12",
+            "description": "更新后的节点说明",
+            "scalar_suffix_zero": "on",
+        },
+        follow_redirects=True,
+    )
+    assert update_node.status_code == 200
+
+    update_enum = client.post(
+        f"/mib-nodes/enums/{enum_id}",
+        data={
+            "enum_name": "DEMO_ENUM",
+            "code": "2",
+            "label": "warn",
+            "description": "告警",
+        },
+        follow_redirects=True,
+    )
+    assert update_enum.status_code == 200
+
+    update_strategy = client.post(
+        f"/mib-nodes/strategies/{strategy_id}",
+        data={
+            "node_name": "demoMetric",
+            "node_name_zh": "演示指标",
+            "oid": "1.3.6.1.4.1.42669.9.3",
+            "category": "demo",
+            "poll_interval_seconds": "45",
+            "display_order": "8",
+            "is_enabled": "on",
+            "show_in_overview": "on",
+            "show_in_device_card": "on",
+            "judge_type": "enum_equals",
+            "expected_value_text": "ok",
+            "health_on_mismatch": "critical",
+            "notes": "更新后的策略",
+        },
+        follow_redirects=True,
+    )
+    assert update_strategy.status_code == 200
+
+    update_rule = client.post(
+        f"/mib-nodes/alarm-rules/{rule_id}",
+        data={
+            "alarm_id": "DEMO_ALARM_2",
+            "default_severity": "critical",
+            "category": "Demo2",
+            "should_popup": "on",
+            "description": "更新后的告警",
+        },
+        follow_redirects=True,
+    )
+    assert update_rule.status_code == 200
+
+    delete_strategy = client.post(f"/mib-nodes/strategies/{strategy_id}/delete", follow_redirects=True)
+    delete_rule = client.post(f"/mib-nodes/alarm-rules/{rule_id}/delete", follow_redirects=True)
+    delete_node = client.post(f"/mib-nodes/nodes/{node_id}/delete", follow_redirects=True)
+    delete_enum = client.post(f"/mib-nodes/enums/{enum_id}/delete", follow_redirects=True)
+    delete_profile = client.post("/mib-nodes/profiles/custom_demo/delete", follow_redirects=True)
+
+    assert delete_strategy.status_code == 200
+    assert delete_rule.status_code == 200
+    assert delete_node.status_code == 200
+    assert delete_enum.status_code == 200
+    assert delete_profile.status_code == 200
+
+    with Session(engine) as session:
+        assert session.scalar(select(DeviceProfile).where(DeviceProfile.profile_code == "custom_demo")) is None
+        assert session.scalar(select(MibNode).where(MibNode.id == node_id)) is None
+        assert session.scalar(select(MibEnum).where(MibEnum.id == enum_id)) is None
+        assert session.scalar(select(PollingStrategy).where(PollingStrategy.id == strategy_id)) is None
+        assert session.scalar(select(AlarmRule).where(AlarmRule.id == rule_id)) is None
