@@ -30,7 +30,7 @@
       a { color: var(--brand); text-decoration: none; }
       .layout {
         display: grid;
-        grid-template-columns: 240px 1fr;
+        grid-template-columns: 260px 1fr;
         min-height: 100vh;
       }
       .sidebar {
@@ -50,14 +50,14 @@
       .brand p {
         margin: 0;
         font-size: 13px;
-        color: rgba(238, 245, 251, 0.72);
+        color: rgba(238, 245, 251, 0.75);
       }
       .nav a {
         display: block;
         margin-bottom: 8px;
         padding: 10px 12px;
         border-radius: 10px;
-        color: rgba(238, 245, 251, 0.9);
+        color: rgba(238, 245, 251, 0.92);
       }
       .nav a.active,
       .nav a:hover {
@@ -66,7 +66,8 @@
       .sidebar .meta {
         margin-top: 24px;
         font-size: 12px;
-        color: rgba(238, 245, 251, 0.7);
+        color: rgba(238, 245, 251, 0.72);
+        line-height: 1.6;
       }
       .content {
         padding: 24px;
@@ -75,6 +76,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 16px;
         margin-bottom: 18px;
       }
       .topbar h2 {
@@ -188,8 +190,10 @@
       }
       .tag.critical, .tag.major { background: #fde8e8; color: var(--danger); }
       .tag.warning, .tag.minor { background: #fff4dd; color: var(--warn); }
-      .tag.ok, .tag.report, .tag.change { background: #e9f8ef; color: var(--ok); }
+      .tag.ok, .tag.report, .tag.change, .tag.acknowledged { background: #e9f8ef; color: var(--ok); }
       .tag.close, .tag.cleared { background: #eff2f6; color: var(--muted); }
+      .tag.error { background: #fde8e8; color: var(--danger); }
+      .tag.partial { background: #fff4dd; color: var(--warn); }
       .flash-stack {
         display: grid;
         gap: 10px;
@@ -211,6 +215,19 @@
         background: #eefaf2;
         color: var(--ok);
       }
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .soft-note {
+        margin-bottom: 16px;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #f8fbfd;
+        color: var(--muted);
+        line-height: 1.6;
+      }
       .popup-tray {
         position: fixed;
         right: 18px;
@@ -231,9 +248,11 @@
         margin: 0 0 6px;
         font-size: 15px;
       }
-      .muted {
+      .footer {
+        margin-top: 18px;
         color: var(--muted);
-        font-size: 13px;
+        font-size: 12px;
+        text-align: right;
       }
       @media (max-width: 920px) {
         .layout {
@@ -259,7 +278,7 @@
         <aside class="sidebar">
           <div class="brand">
             <h1>{{ page_title }}</h1>
-            <p>{{ current_user.username }} / {{ current_user.role }}</p>
+            <p>{{ current_user.username }} / {{ current_user.role|role_label }}</p>
           </div>
           <nav class="nav">
             <a class="{{ 'active' if page_name == '总览' else '' }}" href="{{ url_for('web.dashboard') }}">总览</a>
@@ -273,16 +292,17 @@
             <a class="{{ 'active' if page_name == '操作日志' else '' }}" href="{{ url_for('web.logs') }}">操作日志</a>
           </nav>
           <div class="meta">
-            Redis channel: {{ channel_prefix }}:trap_events
+            <div>实时通道：{{ channel_prefix }}:trap_events</div>
+            <div style="margin-top:8px;">版权所有 © 江苏有线南京分公司</div>
           </div>
         </aside>
         <section class="content">
           <div class="topbar">
             <h2>{{ page_name }}</h2>
             <div class="status">
-              <span>{{ current_user.username }}</span>
+              <span>{{ current_user.username }} / {{ current_user.role|role_label }}</span>
               <form class="inline" method="post" action="{{ url_for('web.logout') }}">
-                <button class="secondary" type="submit">退出</button>
+                <button class="secondary" type="submit">退出登录</button>
               </form>
             </div>
           </div>
@@ -298,6 +318,7 @@
           <div class="main-panel">
             {% block content %}{% endblock %}
           </div>
+          <div class="footer">版权所有 © 江苏有线南京分公司</div>
         </section>
       </div>
       <div class="popup-tray" id="popup-tray"></div>
@@ -313,8 +334,9 @@
               const node = document.createElement("div");
               node.className = "popup-item";
               node.innerHTML = `
-                <h4>${item.severity || "alarm"} / ${item.alarm_id || "-"}</h4>
-                <div class="muted">${item.alarm_obj || "-"} | ${item.created_at || "-"}</div>
+                <h4>${item.severity_label || "告警"} / ${item.alarm_id || "-"}</h4>
+                <div class="muted">${item.device_name || "未知设备"} | ${item.alarm_obj || "-"}</div>
+                <div class="muted" style="margin-top:4px;">${item.created_at || "-"}</div>
                 <div style="margin-top:10px;"><button data-popup-id="${item.id}">确认弹窗</button></div>
               `;
               tray.appendChild(node);

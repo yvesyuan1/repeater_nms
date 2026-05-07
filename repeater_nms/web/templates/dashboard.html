@@ -32,11 +32,11 @@
         <tbody>
           {% for item in recent_traps %}
             <tr>
-              <td>{{ item.received_at|dt }}</td>
+              <td>{{ item.received_at }}</td>
               <td>{{ item.source_ip }}</td>
-              <td>{{ item.device_id or '未知设备' }}</td>
-              <td>{{ item.alarm_id or item.trap_name }}</td>
-              <td><span class="tag {{ item.severity or '' }}">{{ item.severity or '-' }}</span></td>
+              <td>{{ item.device_name }}</td>
+              <td>{{ item.alarm_id or item.trap_name_label }}</td>
+              <td><span class="tag {{ item.severity or '' }}">{{ item.severity_label }}</span></td>
             </tr>
           {% else %}
             <tr><td colspan="5">暂无 Trap 数据。</td></tr>
@@ -58,7 +58,10 @@
           {% for item in recent_devices %}
             <tr>
               <td><a href="{{ url_for('web.device_detail', device_id=item.id) }}">{{ item.name }}</a></td>
-              <td><span class="tag {{ item.last_poll_status or '' }}">{{ item.last_poll_status or '-' }}</span></td>
+              <td>
+                <span class="tag {{ item.last_poll_status or '' }}">{{ item.last_poll_status|poll_status_label }}</span>
+                <div class="muted" style="margin-top:4px;">{{ item.last_poll_status|poll_status_desc(item.last_poll_message) }}</div>
+              </td>
               <td>{{ item.last_polled_at|dt }}</td>
             </tr>
           {% else %}

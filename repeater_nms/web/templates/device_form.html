@@ -12,8 +12,8 @@
         <div class="muted">SNMP 版本</div>
         <select name="snmp_version"><option value="v2c" {% if device.snmp_version == 'v2c' %}selected{% endif %}>v2c</option></select>
       </label>
-      <label><div class="muted">Read Community（留空保持当前：{{ device.read_community|masked }}）</div><input type="text" name="read_community"></label>
-      <label><div class="muted">Write Community（留空保持当前：{{ device.write_community|masked }}）</div><input type="text" name="write_community"></label>
+      <label><div class="muted">读团体字（留空保持当前：{{ device.read_community|masked }}）</div><input type="text" name="read_community"></label>
+      <label><div class="muted">写团体字（留空保持当前：{{ device.write_community|masked }}）</div><input type="text" name="write_community"></label>
       <label class="full"><div class="muted">备注</div><textarea name="notes">{{ device.notes or '' }}</textarea></label>
       <label class="full"><input type="checkbox" name="is_enabled" {% if device.is_enabled %}checked{% endif %}> 启用设备</label>
       <div class="full"><button type="submit">保存修改</button></div>

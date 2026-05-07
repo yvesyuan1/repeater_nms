@@ -17,6 +17,11 @@ $env:TIMEZONE = "Asia/Shanghai"
 
 & .\.venv\Scripts\python.exe -m flask --app wsgi init-db
 & .\.venv\Scripts\python.exe -m flask --app wsgi seed-local-demo
+try {
+  & .\.venv\Scripts\python.exe -m repeater_nms.collector poll-once
+} catch {
+  Write-Host "Initial poll skipped: $($_.Exception.Message)"
+}
 
 Write-Host "Local trial initialized."
 Write-Host "Open: http://127.0.0.1:5000/login"

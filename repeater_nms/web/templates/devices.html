@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 
 {% block content %}
+  <div class="soft-note">{{ collector_hint }}</div>
+
   <div class="grid" style="grid-template-columns: 380px 1fr;">
     {% if current_user.role in ['admin', 'operator'] %}
       <section class="card">
@@ -14,8 +16,8 @@
             <div class="muted">SNMP 版本</div>
             <select name="snmp_version"><option value="v2c">v2c</option></select>
           </label>
-          <label><div class="muted">Read Community</div><input type="text" name="read_community" required></label>
-          <label><div class="muted">Write Community</div><input type="text" name="write_community"></label>
+          <label><div class="muted">读团体字</div><input type="text" name="read_community" required></label>
+          <label><div class="muted">写团体字</div><input type="text" name="write_community"></label>
           <label class="full"><div class="muted">备注</div><textarea name="notes"></textarea></label>
           <label class="full"><input type="checkbox" name="is_enabled" checked> 启用设备</label>
           <div class="full"><button type="submit">创建设备</button></div>
@@ -31,7 +33,7 @@
             <th>IP</th>
             <th>读团体字</th>
             <th>状态</th>
-            <th>轮询</th>
+            <th>轮询状态</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -41,8 +43,11 @@
               <td><a href="{{ url_for('web.device_detail', device_id=item.id) }}">{{ item.name }}</a></td>
               <td>{{ item.ip }}</td>
               <td>{{ item.read_community|masked }}</td>
-              <td><span class="tag {{ 'ok' if item.is_enabled else '' }}">{{ '启用' if item.is_enabled else '停用' }}</span></td>
-              <td>{{ item.last_poll_status or '-' }}</td>
+              <td><span class="tag {{ 'ok' if item.is_enabled else 'error' }}">{{ '启用' if item.is_enabled else '停用' }}</span></td>
+              <td>
+                <span class="tag {{ item.last_poll_status or '' }}">{{ item.last_poll_status|poll_status_label }}</span>
+                <div class="muted" style="margin-top:4px;">{{ item.last_poll_status|poll_status_desc(item.last_poll_message) }}</div>
+              </td>
               <td>
                 <a class="button secondary" href="{{ url_for('web.edit_device', device_id=item.id) }}">编辑</a>
                 {% if current_user.role in ['admin', 'operator'] %}

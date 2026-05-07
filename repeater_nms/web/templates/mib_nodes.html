@@ -23,11 +23,13 @@
           <td>{{ item.access }}</td>
           <td>{{ item.data_type }}</td>
           <td>{{ item.category }}</td>
-          <td>{{ 'Y' if item.is_pollable else '-' }}</td>
-          <td>{{ 'Y' if item.is_trap_field else '-' }}</td>
-          <td>{{ 'Y' if item.is_set_reserved else '-' }}</td>
+          <td>{{ '是' if item.is_pollable else '-' }}</td>
+          <td>{{ '是' if item.is_trap_field else '-' }}</td>
+          <td>{{ '是' if item.is_set_reserved else '-' }}</td>
           <td>{{ item.description }}</td>
         </tr>
+      {% else %}
+        <tr><td colspan="9">暂无 MIB 节点。</td></tr>
       {% endfor %}
     </tbody>
   </table>

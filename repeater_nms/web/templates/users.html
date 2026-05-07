@@ -1,6 +1,15 @@
 {% extends "base.html" %}
 
 {% block content %}
+  <div class="soft-note">
+    <strong>角色说明</strong>
+    <div style="margin-top:8px;display:grid;gap:6px;">
+      {% for item in role_descriptions %}
+        <div><span class="tag">{{ item.label }}</span> {{ item.description }}</div>
+      {% endfor %}
+    </div>
+  </div>
+
   <div class="grid" style="grid-template-columns: 360px 1fr;">
     <section class="card">
       <h3 style="margin-top:0;">新增用户</h3>
@@ -10,9 +19,9 @@
         <label>
           <div class="muted">角色</div>
           <select name="role">
-            <option value="admin">admin</option>
-            <option value="operator">operator</option>
-            <option value="viewer">viewer</option>
+            <option value="admin">管理员</option>
+            <option value="operator">值班员</option>
+            <option value="viewer">只读用户</option>
           </select>
         </label>
         <label><input type="checkbox" name="is_active" checked> 启用</label>
@@ -37,8 +46,11 @@
             <tr>
               <td>{{ item.id }}</td>
               <td>{{ item.username }}</td>
-              <td>{{ item.role }}</td>
-              <td><span class="tag {{ 'ok' if item.is_active else '' }}">{{ '启用' if item.is_active else '停用' }}</span></td>
+              <td>
+                <div>{{ item.role|role_label }}</div>
+                <div class="muted">{{ item.role|role_desc }}</div>
+              </td>
+              <td><span class="tag {{ 'ok' if item.is_active else 'error' }}">{{ '启用' if item.is_active else '停用' }}</span></td>
               <td>{{ item.last_login_at|dt }}</td>
               <td>
                 <form class="inline" method="post" action="{{ url_for('web.toggle_user', user_id=item.id) }}">
@@ -46,6 +58,8 @@
                 </form>
               </td>
             </tr>
+          {% else %}
+            <tr><td colspan="6">暂无用户。</td></tr>
           {% endfor %}
         </tbody>
       </table>

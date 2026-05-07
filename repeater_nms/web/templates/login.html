@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
 {% block auth_content %}
-  <section class="main-panel" style="max-width:420px;width:100%;">
+  <section class="main-panel" style="max-width:440px;width:100%;">
     <h2 style="margin-top:0;">登录</h2>
-    <p class="muted">登录到中继器网管系统。</p>
+    <p class="muted">登录到中继器网管系统</p>
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div class="flash-stack">
@@ -22,7 +22,24 @@
         <div class="muted">密码</div>
         <input type="password" name="password" required>
       </label>
+      <div class="grid" style="grid-template-columns:1fr 140px;align-items:end;">
+        <label>
+          <div class="muted">图片验证码</div>
+          <input type="text" name="captcha" maxlength="8" required placeholder="请输入验证码">
+        </label>
+        <div>
+          <div class="muted" style="margin-bottom:6px;">看不清可刷新</div>
+          <img
+            id="captcha-image"
+            src="{{ url_for('web.captcha_svg') }}"
+            alt="验证码"
+            style="width:120px;height:44px;border:1px solid #d7dee8;border-radius:10px;background:#f8fbfd;cursor:pointer;"
+            onclick="this.src='{{ url_for('web.captcha_svg') }}?t=' + Date.now()"
+          >
+        </div>
+      </div>
       <button type="submit">登录</button>
     </form>
+    <div class="muted" style="margin-top:14px;">Copyright © 江苏有线南京分公司</div>
   </section>
 {% endblock %}

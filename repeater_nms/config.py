@@ -26,3 +26,4 @@ class Config:
     SSE_HEARTBEAT_SECONDS = int(os.getenv("SSE_HEARTBEAT_SECONDS", "15"))
     SESSION_COOKIE_HTTPONLY = True
     REMEMBER_COOKIE_HTTPONLY = True
+    CAPTCHA_LENGTH = int(os.getenv("CAPTCHA_LENGTH", "4"))

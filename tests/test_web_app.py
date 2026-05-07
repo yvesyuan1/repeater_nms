@@ -120,7 +120,14 @@ def _build_app(tmp_path: Path):
 
 
 def _login(client):
-    return client.post("/login", data={"username": "admin", "password": "Admin-Password-123"}, follow_redirects=True)
+    client.get("/login")
+    with client.session_transaction() as session:
+        session["captcha_code"] = "ABCD"
+    return client.post(
+        "/login",
+        data={"username": "admin", "password": "Admin-Password-123", "captcha": "ABCD"},
+        follow_redirects=True,
+    )
 
 
 def test_login_and_main_pages(tmp_path: Path) -> None:
