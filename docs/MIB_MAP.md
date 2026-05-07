@@ -1,4 +1,4 @@
-# RX10 MIB 与 Trap 映射
+# RX10 MIB / Trap 映射
 
 ## 根 OID
 
@@ -14,7 +14,7 @@
 | almchg | `1.3.6.1.4.1.42669.1.1.0.1` | 告警变更通知 |
 | performance | `1.3.6.1.4.1.42669.1.1.0.5` | 性能数据上报通知 |
 
-## almchgTable 字段
+## 告警变更表 `almchgTable`
 
 | 字段 | OID 前缀 | 含义 |
 | --- | --- | --- |
@@ -26,7 +26,7 @@
 | almChgStat | `1.3.6.1.4.1.42669.1.2.1.1.6` | 告警状态 |
 | almChgObjDesc | `1.3.6.1.4.1.42669.1.2.1.1.7` | 告警对象描述 |
 
-## performanceTable 字段
+## 性能上报表 `performanceTable`
 
 | 字段 | OID 前缀 | 含义 |
 | --- | --- | --- |
@@ -99,51 +99,51 @@
 - `1` = `self`
 - `2` = `peer`
 
-## 告警规则
+## 内置告警规则
 
 ### Critical
 
-- Power1_Fail
-- Power2_Fail
-- HighTemp
-- LowTemp
-- PKG_FAIL
-- LOS
-- LsrOffline
-- HighSysMem
-- HighRootfs
-- HighAppdisk
-- PKG_NOTREADY
+- `Power1_Fail`
+- `Power2_Fail`
+- `HighTemp`
+- `LowTemp`
+- `PKG_FAIL`
+- `LOS`
+- `LsrOffline`
+- `HighSysMem`
+- `HighRootfs`
+- `HighAppdisk`
+- `PKG_NOTREADY`
 
 ### Major
 
-- FAN1_FAIL
-- FAN2_FAIL
-- FAN3_FAIL
-- FAN4_FAIL
+- `FAN1_FAIL`
+- `FAN2_FAIL`
+- `FAN3_FAIL`
+- `FAN4_FAIL`
 
 ### Warning
 
-- LB_15L
-- LB_24L
-- LB_15H
-- LB_24H
-- LT_15L
-- LT_24L
-- LT_15H
-- LT_24H
-- IOP_15L
-- IOP_24L
-- IOP_15H
-- IOP_24H
-- OOP_15L
-- OOP_24L
-- OOP_15H
-- OOP_24H
-- RAM_15H
-- RAM_24H
-- CPU_15H
-- CPU_24H
+- `LB_15L`
+- `LB_24L`
+- `LB_15H`
+- `LB_24H`
+- `LT_15L`
+- `LT_24L`
+- `LT_15H`
+- `LT_24H`
+- `IOP_15L`
+- `IOP_24L`
+- `IOP_15H`
+- `IOP_24H`
+- `OOP_15L`
+- `OOP_24L`
+- `OOP_15H`
+- `OOP_24H`
+- `RAM_15H`
+- `RAM_24H`
+- `CPU_15H`
+- `CPU_24H`
 
 ## 性能项说明
 
@@ -156,12 +156,13 @@
 
 ## 真实 Trap 样本解析规则
 
-- 服务器监听 `0.0.0.0:1162/udp`。
-- 设备匹配优先使用 Trap UDP 源 IP。
-- `1.3.6.1.6.3.1.1.4.1.0` 表示 Trap 类型字段，`almchg` 对应 `1.3.6.1.4.1.42669.1.1.0.1`。
-- `1.3.6.1.2.1.1.3.0` 保存为 `sysUpTime`。
-- `almchg` Trap 必须按 OID 后缀 `<index1>.<index2>` 分组。
-- 同一个 Trap PDU 可能拆分出多条独立告警事件，所有拆分事件保留相同 `pdu_id`。
-- `received_at` 作为默认排序和主显示时间。
-- `almChgTime` 原样保存为 `device_alarm_time_raw`，不在第一版强转成人类时间。
-
+- 监听端口固定为 `0.0.0.0:1162/udp`
+- 设备匹配优先使用 Trap UDP 源 IP，不使用源端口
+- SNMP v2 Trap 中，`1.3.6.1.6.3.1.1.4.1.0` 标识 Trap 类型
+- `1.3.6.1.2.1.1.3.0` 作为 `sysUpTime` 保存
+- `almchg` Trap 的 varbind OID 形如 `1.3.6.1.4.1.42669.1.2.1.1.<field>.<index1>.<index2>`
+- 必须按 `<index1>.<index2>` 分组，不能把一个 PDU 简单当成一条告警
+- 同一 PDU 中拆出的多条告警必须逐条入库、逐条归一化、逐条推送，并保留同一个 `pdu_id`
+- `received_at` 使用服务器收到 Trap 的时间
+- `almChgTime` 原样保存到 `device_alarm_time_raw`
+- `translated_json` 至少保存：`pdu_id`、`alarm_index`、`alarm_obj`、`alarm_id`、`severity_code`、`severity`、`status_code`、`status`、`device_alarm_time_raw`、`alarm_obj_desc`、`is_active_alarm`、`should_popup`
