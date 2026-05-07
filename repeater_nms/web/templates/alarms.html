@@ -1,12 +1,18 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <div class="soft-note">
-    <div><strong>活动告警</strong>：当前尚未收到关闭或清除事件的告警，确认后仍会保留在活动告警中，只是状态变为“已确认”。</div>
-    <div style="margin-top:6px;"><strong>历史告警</strong>：所有告警事件流水，包括上报、变化、关闭，用于检索和审计。</div>
+  <div class="grid cards">
+    <div class="card">
+      <div class="label">当前活动告警数</div>
+      <div class="value">{{ active_count }}</div>
+    </div>
+    <div class="card">
+      <div class="label">当前未确认告警数</div>
+      <div class="value">{{ unacked_count }}</div>
+    </div>
   </div>
 
-  <form method="get" class="filters" style="margin-bottom:18px;">
+  <form method="get" class="filters" style="margin:18px 0;">
     <label style="min-width:180px;">
       <div class="muted">设备</div>
       <select name="device_id">
@@ -26,23 +32,23 @@
       </select>
     </label>
     <label style="min-width:180px;">
-      <div class="muted">活动状态</div>
+      <div class="muted">当前状态</div>
       <select name="open_state">
+        <option value="">全部</option>
         <option value="open" {% if filters.open_state == 'open' %}selected{% endif %}>仅活动中</option>
         <option value="closed" {% if filters.open_state == 'closed' %}selected{% endif %}>仅已关闭</option>
-        <option value="all" {% if filters.open_state == 'all' %}selected{% endif %}>全部</option>
       </select>
     </label>
     <label style="min-width:180px;">
       <div class="muted">确认状态</div>
       <select name="ack_state">
-        <option value="" {% if not filters.ack_state %}selected{% endif %}>全部</option>
-        <option value="unack" {% if filters.ack_state == 'unack' %}selected{% endif %}>未确认</option>
-        <option value="ack" {% if filters.ack_state == 'ack' %}selected{% endif %}>已确认</option>
+        <option value="">全部</option>
+        <option value="unack" {% if filters.ack_state == 'unack' %}selected{% endif %}>仅未确认</option>
+        <option value="ack" {% if filters.ack_state == 'ack' %}selected{% endif %}>仅已确认</option>
       </select>
     </label>
     <label style="min-width:180px;">
-      <div class="muted">历史状态</div>
+      <div class="muted">事件状态</div>
       <select name="history_status">
         <option value="">全部</option>
         {% for name in ['report', 'change', 'close'] %}
@@ -52,7 +58,7 @@
     </label>
     <label style="min-width:220px;flex:1;">
       <div class="muted">关键字</div>
-      <input type="text" name="keyword" value="{{ filters.keyword }}" placeholder="支持对象、告警ID、备注、消息">
+      <input type="text" name="keyword" value="{{ filters.keyword }}" placeholder="对象 / 告警ID / 消息 / 备注">
     </label>
     <label style="min-width:180px;">
       <div class="muted">开始时间</div>
@@ -62,90 +68,56 @@
       <div class="muted">结束时间</div>
       <input type="datetime-local" name="end_at" value="{{ filters.end_at }}">
     </label>
-    <div style="align-self:end;">
-      <button type="submit">筛选</button>
-    </div>
+    <div style="align-self:end;"><button type="submit">筛选</button></div>
   </form>
 
-  <section class="card">
-    <h3 style="margin-top:0;">活动告警</h3>
-    <table>
-      <thead>
+  <table>
+    <thead>
+      <tr>
+        <th>时间</th>
+        <th>设备</th>
+        <th>对象</th>
+        <th>告警</th>
+        <th>级别</th>
+        <th>事件状态</th>
+        <th>当前状态</th>
+        <th>确认状态</th>
+        <th>次数</th>
+        <th>备注</th>
+        <th>消息</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in alarm_rows %}
+        {% set event = row.event %}
+        {% set active_alarm = row.active_alarm %}
         <tr>
-          <th>设备</th>
-          <th>对象</th>
-          <th>告警</th>
-          <th>级别</th>
-          <th>状态</th>
-          <th>次数</th>
-          <th>确认</th>
-          <th>最后发生</th>
-          <th>备注</th>
-          <th>操作</th>
+          <td>{{ event.occurred_at|dt }}</td>
+          <td>{{ row.device_name }}</td>
+          <td>{{ event.alarm_obj or '-' }}</td>
+          <td>{{ event.alarm_id or '-' }}</td>
+          <td><span class="tag {{ event.severity or '' }}">{{ row.severity_label }}</span></td>
+          <td><span class="tag {{ event.status or '' }}">{{ row.status_label }}</span></td>
+          <td><span class="tag {{ 'ok' if active_alarm and active_alarm.is_open else 'close' }}">{{ row.active_state_label }}</span></td>
+          <td><span class="tag {{ 'acknowledged' if active_alarm and active_alarm.is_acknowledged else 'warning' }}">{{ row.ack_state_label }}</span></td>
+          <td>{{ active_alarm.occurrence_count if active_alarm else '-' }}</td>
+          <td>{{ active_alarm.notes if active_alarm and active_alarm.notes else '-' }}</td>
+          <td>{{ event.message or '-' }}</td>
+          <td>
+            {% if active_alarm and active_alarm.is_open and not active_alarm.is_acknowledged and current_user.role in ['admin', 'operator'] %}
+              <form method="post" action="{{ url_for('web.ack_alarm', alarm_id=active_alarm.id) }}" class="grid" style="gap:8px;">
+                <input type="text" name="note" placeholder="确认备注，可留空">
+                <button type="submit">确认</button>
+              </form>
+            {% else %}
+              -
+            {% endif %}
+          </td>
         </tr>
-      </thead>
-      <tbody>
-        {% for item in active_alarms %}
-          <tr>
-            <td>{{ device_names.get(item.device_id, '未知设备') }}</td>
-            <td>{{ item.alarm_obj }}</td>
-            <td>{{ item.alarm_id }}</td>
-            <td><span class="tag {{ item.severity }}">{{ item.severity|severity_label }}</span></td>
-            <td>
-              <span class="tag {{ item.status }}">{{ item.status|status_label }}</span>
-              <div class="muted" style="margin-top:4px;">{{ '活动中' if item.is_open else '已关闭' }}</div>
-            </td>
-            <td>{{ item.occurrence_count }}</td>
-            <td><span class="tag {{ 'acknowledged' if item.is_acknowledged else 'warning' }}">{{ '已确认' if item.is_acknowledged else '未确认' }}</span></td>
-            <td>{{ item.last_seen_at|dt }}</td>
-            <td>{{ item.notes or '-' }}</td>
-            <td>
-              {% if item.is_open and current_user.role in ['admin', 'operator'] and not item.is_acknowledged %}
-                <form method="post" action="{{ url_for('web.ack_alarm', alarm_id=item.id) }}" class="grid" style="gap:8px;">
-                  <input type="text" name="note" placeholder="确认备注，可留空">
-                  <button type="submit">确认告警</button>
-                </form>
-              {% else %}
-                {{ '已确认' if item.is_acknowledged else '-' }}
-              {% endif %}
-            </td>
-          </tr>
-        {% else %}
-          <tr><td colspan="10">暂无活动告警。</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
-
-  <section class="card" style="margin-top:18px;">
-    <h3 style="margin-top:0;">历史告警事件</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>时间</th>
-          <th>设备</th>
-          <th>对象</th>
-          <th>告警</th>
-          <th>级别</th>
-          <th>状态</th>
-          <th>消息</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for item in alarm_history %}
-          <tr>
-            <td>{{ item.occurred_at|dt }}</td>
-            <td>{{ device_names.get(item.device_id, '未知设备') }}</td>
-            <td>{{ item.alarm_obj or '-' }}</td>
-            <td>{{ item.alarm_id or '-' }}</td>
-            <td><span class="tag {{ item.severity or '' }}">{{ item.severity|severity_label }}</span></td>
-            <td><span class="tag {{ item.status or '' }}">{{ item.status|status_label }}</span></td>
-            <td>{{ item.message or '-' }}</td>
-          </tr>
-        {% else %}
-          <tr><td colspan="7">暂无历史事件。</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
+      {% else %}
+        <tr><td colspan="12">暂无告警数据。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 {% endblock %}

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from datetime import timezone
-from datetime import datetime
+from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
@@ -11,11 +11,22 @@ from sqlalchemy import select
 from repeater_nms.collector.constants import ACTIVE_ALARM_SEVERITIES, ACTIVE_ALARM_STATUSES
 from repeater_nms.collector.mib import MibResolver
 from repeater_nms.collector.publisher import EventPublisher, RedisEventPublisher
-from repeater_nms.collector.schemas import NormalizedTrapEvent, ParsedTrapBundle, PollResult, PollTarget, PublishedTrapEvent, TrapPdu
+from repeater_nms.collector.schemas import NormalizedTrapEvent, PollTarget, PublishedTrapEvent, TrapPdu
 from repeater_nms.collector.snmp_client import SnmpV2cClient
 from repeater_nms.collector.trap_parser import TrapParser
 from repeater_nms.db.base import utc_now
-from repeater_nms.db.models import ActiveAlarm, AlarmEvent, Device, DeviceLatestValue, MibNode, PopupNotification, SnmpMetricSample, TrapEvent
+from repeater_nms.db.models import (
+    ActiveAlarm,
+    AlarmEvent,
+    Device,
+    DeviceLatestValue,
+    MibNode,
+    PollingStrategy,
+    PopupNotification,
+    SnmpMetricSample,
+    TrapEvent,
+)
+from repeater_nms.db.seed_data import DEFAULT_PROFILE_CODE
 from repeater_nms.db.session import session_scope
 
 
@@ -30,26 +41,32 @@ class CollectorPipeline:
         channel_prefix: str,
         *,
         publisher: EventPublisher | None = None,
-        resolver: MibResolver | None = None,
-        parser: TrapParser | None = None,
         snmp_client: SnmpV2cClient | None = None,
     ) -> None:
         self.database_url = database_url
         self.publisher = publisher or RedisEventPublisher(redis_url, channel_prefix)
-        self.resolver = resolver or MibResolver()
-        self.parser = parser or TrapParser(self.resolver)
         self.snmp_client = snmp_client or SnmpV2cClient()
 
+    def _resolver(self, profile_code: str | None) -> MibResolver:
+        return MibResolver(profile_code or DEFAULT_PROFILE_CODE)
+
+    def _parser(self, profile_code: str | None) -> TrapParser:
+        return TrapParser(self._resolver(profile_code))
+
     def ingest_pdu(self, pdu: TrapPdu) -> list[PublishedTrapEvent]:
-        parsed = self.parser.parse_pdu(pdu)
-        published_events: list[PublishedTrapEvent] = []
         with session_scope(self.database_url) as session:
             device = session.execute(select(Device).where(Device.ip == pdu.source_ip)).scalar_one_or_none()
+            profile_code = DEFAULT_PROFILE_CODE if device is None else (device.device_profile_code or DEFAULT_PROFILE_CODE)
+            resolver = self._resolver(profile_code)
+            parser = TrapParser(resolver)
+            parsed = parser.parse_pdu(pdu)
+            published_events: list[PublishedTrapEvent] = []
             device_name = "未知设备" if device is None else device.name
 
             if parsed.parse_status != "parsed" or not parsed.events:
                 trap_event = TrapEvent(
                     device_id=None if device is None else device.id,
+                    profile_code=profile_code,
                     pdu_id=pdu.pdu_id,
                     source_ip=pdu.source_ip,
                     source_port=pdu.source_port,
@@ -82,6 +99,7 @@ class CollectorPipeline:
             for event in parsed.events:
                 trap_event = TrapEvent(
                     device_id=None if device is None else device.id,
+                    profile_code=profile_code,
                     pdu_id=pdu.pdu_id,
                     source_ip=pdu.source_ip,
                     source_port=pdu.source_port,
@@ -158,11 +176,12 @@ class CollectorPipeline:
                 published_events.append(published)
 
             LOGGER.info(
-                "trap parsed source_ip=%s trap_oid=%s pdu_id=%s split_count=%s",
+                "trap parsed source_ip=%s trap_oid=%s pdu_id=%s split_count=%s profile=%s",
                 pdu.source_ip,
                 parsed.trap_oid,
                 pdu.pdu_id,
                 len(parsed.events),
+                profile_code,
             )
 
         for published in published_events:
@@ -171,24 +190,33 @@ class CollectorPipeline:
 
     def poll_enabled_devices_once(self) -> dict[str, int]:
         with session_scope(self.database_url) as session:
-            devices = session.execute(
-                select(Device).where(Device.is_enabled.is_(True))
-            ).scalars().all()
-            pollable_nodes = session.execute(
-                select(MibNode).where(MibNode.is_pollable.is_(True)).order_by(MibNode.oid)
-            ).scalars().all()
-
-            targets = [
-                PollTarget(
-                    oid=node.oid,
-                    name=node.name,
-                    scalar_suffix_zero=node.scalar_suffix_zero,
+            devices = session.execute(select(Device).where(Device.is_enabled.is_(True))).scalars().all()
+            strategies = session.execute(
+                select(PollingStrategy).where(PollingStrategy.is_enabled.is_(True)).order_by(
+                    PollingStrategy.profile_code, PollingStrategy.display_order, PollingStrategy.id
                 )
-                for node in pollable_nodes
-            ]
+            ).scalars().all()
+            strategies_by_profile: dict[str, list[PollingStrategy]] = defaultdict(list)
+            for item in strategies:
+                strategies_by_profile[item.profile_code].append(item)
 
         result_counts = defaultdict(int)
         for device in devices:
+            profile_code = device.device_profile_code or DEFAULT_PROFILE_CODE
+            resolver = self._resolver(profile_code)
+            profile_strategies = strategies_by_profile.get(profile_code, [])
+            targets = [
+                PollTarget(
+                    oid=item.oid,
+                    name=item.node_name,
+                    scalar_suffix_zero=bool((resolver.node_by_name(item.node_name) or {}).get("scalar_suffix_zero")),
+                )
+                for item in profile_strategies
+            ]
+            if not targets:
+                LOGGER.warning("no polling strategy configured for profile=%s device=%s", profile_code, device.name)
+                continue
+
             results = self.snmp_client.poll_device_sync(
                 device.id,
                 device.name,
@@ -197,6 +225,7 @@ class CollectorPipeline:
                 device.read_community,
                 targets,
             )
+            strategy_by_name = {item.node_name: item for item in profile_strategies}
             with session_scope(self.database_url) as session:
                 db_device = session.get(Device, device.id)
                 if db_device is None:
@@ -204,16 +233,37 @@ class CollectorPipeline:
                 success_count = 0
                 error_messages: list[str] = []
                 for result in results:
-                    db_node = session.execute(select(MibNode).where(MibNode.name == result.oid_name)).scalar_one_or_none()
+                    node = resolver.node_by_name(result.oid_name) or resolver.node_by_oid(result.oid)
+                    strategy = strategy_by_name.get(result.oid_name)
+                    interpreted = self._interpret_poll_result(
+                        resolver=resolver,
+                        result=result,
+                        node=node,
+                        strategy=strategy,
+                    )
+                    db_node = None
+                    if node:
+                        db_node = session.execute(
+                            select(MibNode).where(MibNode.name == node["name"])
+                        ).scalar_one_or_none()
                     sample = SnmpMetricSample(
                         device_id=device.id,
+                        profile_code=profile_code,
                         mib_node_id=None if db_node is None else db_node.id,
                         oid=result.oid,
                         oid_name=result.oid_name,
+                        oid_name_zh=interpreted["oid_name_zh"],
+                        category=interpreted["category"],
                         metric_key=result.oid_name,
                         value_raw=result.value_raw,
                         value_text=result.value_text,
-                        value_num=result.value_num,
+                        display_value=interpreted["display_value"],
+                        enum_text=interpreted["enum_text"],
+                        value_unit=interpreted["value_unit"],
+                        value_num=None if result.value_num is None else Decimal(str(result.value_num)),
+                        health_status=interpreted["health_status"],
+                        health_text=interpreted["health_text"],
+                        health_reason=interpreted["health_reason"],
                         poll_status=result.poll_status,
                         error_message=result.error_message,
                         collected_at=result.collected_at,
@@ -228,26 +278,53 @@ class CollectorPipeline:
                     if latest is None:
                         latest = DeviceLatestValue(
                             device_id=device.id,
+                            profile_code=profile_code,
                             mib_node_id=None if db_node is None else db_node.id,
                             oid=result.request_oid,
                             oid_name=result.oid_name,
+                            oid_name_zh=interpreted["oid_name_zh"],
+                            category=interpreted["category"],
                             value_raw=result.value_raw,
                             value_text=result.value_text,
-                            value_num=result.value_num,
+                            display_value=interpreted["display_value"],
+                            enum_text=interpreted["enum_text"],
+                            value_unit=interpreted["value_unit"],
+                            value_num=None if result.value_num is None else Decimal(str(result.value_num)),
+                            value_json=None,
+                            health_status=interpreted["health_status"],
+                            health_text=interpreted["health_text"],
+                            health_reason=interpreted["health_reason"],
                             poll_status=result.poll_status,
                             error_message=result.error_message,
                             collected_at=result.collected_at,
+                            last_success_at=result.collected_at if result.poll_status == "ok" else None,
+                            last_failure_at=result.collected_at if result.poll_status != "ok" else None,
+                            last_failure_message=result.error_message if result.poll_status != "ok" else None,
                         )
                         session.add(latest)
                     else:
+                        latest.profile_code = profile_code
                         latest.mib_node_id = None if db_node is None else db_node.id
                         latest.oid_name = result.oid_name
+                        latest.oid_name_zh = interpreted["oid_name_zh"]
+                        latest.category = interpreted["category"]
                         latest.value_raw = result.value_raw
                         latest.value_text = result.value_text
-                        latest.value_num = result.value_num
+                        latest.display_value = interpreted["display_value"]
+                        latest.enum_text = interpreted["enum_text"]
+                        latest.value_unit = interpreted["value_unit"]
+                        latest.value_num = None if result.value_num is None else Decimal(str(result.value_num))
+                        latest.health_status = interpreted["health_status"]
+                        latest.health_text = interpreted["health_text"]
+                        latest.health_reason = interpreted["health_reason"]
                         latest.poll_status = result.poll_status
                         latest.error_message = result.error_message
                         latest.collected_at = result.collected_at
+                        if result.poll_status == "ok":
+                            latest.last_success_at = result.collected_at
+                        else:
+                            latest.last_failure_at = result.collected_at
+                            latest.last_failure_message = result.error_message
 
                     if result.poll_status == "ok":
                         success_count += 1
@@ -264,6 +341,7 @@ class CollectorPipeline:
                     {
                         "device_id": device.id,
                         "device_name": device.name,
+                        "profile_code": profile_code,
                         "last_polled_at": db_device.last_polled_at.isoformat(),
                         "last_poll_status": db_device.last_poll_status,
                         "last_poll_message": db_device.last_poll_message,
@@ -279,6 +357,68 @@ class CollectorPipeline:
     def _active_alarm_key(device_id: int | None, alarm_obj: str | None, alarm_id: str | None) -> str:
         return f"{device_id or 'unknown'}::{alarm_obj or ''}::{alarm_id or ''}"
 
+    def _interpret_poll_result(
+        self,
+        *,
+        resolver: MibResolver,
+        result,
+        node: dict[str, Any] | None,
+        strategy: PollingStrategy | None,
+    ) -> dict[str, Any]:
+        def normalize_text(value: Any) -> str:
+            text = "" if value is None else str(value).strip()
+            return "-" if not text or text.lower() in {"null", "none", "nan"} else text
+
+        enum_text = None
+        display_value = normalize_text(result.value_text or result.value_raw)
+        value_unit = None if node is None else node.get("unit")
+        if result.poll_status == "ok" and node and node.get("enum_name"):
+            try:
+                code = int(float(result.value_text or result.value_raw or ""))
+            except Exception:
+                code = None
+            if code is not None:
+                enum_text = resolver.enum_description(node.get("enum_name"), code) or resolver.translate_enum(node.get("enum_name"), code)
+                if enum_text:
+                    display_value = normalize_text(resolver.translate_enum(node.get("enum_name"), code) or display_value)
+
+        health_status = "unknown"
+        health_text = "未知"
+        health_reason = "未配置正常判断规则"
+
+        if result.poll_status != "ok":
+            health_status = "error"
+            health_text = "采集失败"
+            health_reason = result.error_message or "SNMP 采集失败"
+        elif strategy and strategy.judge_type == "enum_equals":
+            expected_values = [str(item) for item in (strategy.expected_values_json or [])]
+            current_candidates = [str(result.value_raw or ""), str(result.value_text or ""), str(display_value or "")]
+            matched = any(item and item in expected_values for item in current_candidates)
+            if matched:
+                health_status = "normal"
+                health_text = "正常"
+                health_reason = "命中正常判断规则"
+            else:
+                health_status = strategy.health_on_mismatch or "warning"
+                health_text = {
+                    "warning": "告警",
+                    "major": "主要告警",
+                    "critical": "严重告警",
+                    "normal": "正常",
+                }.get(health_status, "未知")
+                health_reason = f"当前值 {display_value or result.value_raw or '-'} 未命中正常判断规则"
+
+        return {
+            "oid_name_zh": None if node is None else node.get("name_zh"),
+            "category": None if node is None else node.get("category"),
+            "display_value": display_value,
+            "enum_text": enum_text,
+            "value_unit": value_unit,
+            "health_status": health_status,
+            "health_text": health_text,
+            "health_reason": health_reason,
+        }
+
     def _apply_active_alarm(
         self,
         session,
@@ -292,9 +432,7 @@ class CollectorPipeline:
             return None
 
         dedupe_key = self._active_alarm_key(device_id, event.alarm_obj, event.alarm_id)
-        active_alarm = session.execute(
-            select(ActiveAlarm).where(ActiveAlarm.dedupe_key == dedupe_key)
-        ).scalar_one_or_none()
+        active_alarm = session.execute(select(ActiveAlarm).where(ActiveAlarm.dedupe_key == dedupe_key)).scalar_one_or_none()
 
         opens_alarm = bool(event.severity in ACTIVE_ALARM_SEVERITIES and event.status in ACTIVE_ALARM_STATUSES)
         closes_alarm = bool(event.status == "close" or event.severity == "cleared")
@@ -349,7 +487,15 @@ class CollectorPipeline:
         return active_alarm
 
     @staticmethod
-    def _create_alarm_event(session, *, device_id: int | None, trap_event: TrapEvent, event: NormalizedTrapEvent, active_alarm: ActiveAlarm | None, occurred_at: datetime) -> None:
+    def _create_alarm_event(
+        session,
+        *,
+        device_id: int | None,
+        trap_event: TrapEvent,
+        event: NormalizedTrapEvent,
+        active_alarm: ActiveAlarm | None,
+        occurred_at: datetime,
+    ) -> None:
         alarm_event = AlarmEvent(
             active_alarm_id=None if active_alarm is None else active_alarm.id,
             trap_event_id=trap_event.id,
@@ -367,13 +513,18 @@ class CollectorPipeline:
         session.add(alarm_event)
 
     @staticmethod
-    def _apply_popup_notification(session, *, device_id: int | None, trap_event: TrapEvent, event: NormalizedTrapEvent, active_alarm: ActiveAlarm | None) -> None:
+    def _apply_popup_notification(
+        session,
+        *,
+        device_id: int | None,
+        trap_event: TrapEvent,
+        event: NormalizedTrapEvent,
+        active_alarm: ActiveAlarm | None,
+    ) -> None:
         if not event.should_popup:
             return
         popup_key = CollectorPipeline._active_alarm_key(device_id, event.alarm_obj, event.alarm_id)
-        popup = session.execute(
-            select(PopupNotification).where(PopupNotification.popup_key == popup_key)
-        ).scalar_one_or_none()
+        popup = session.execute(select(PopupNotification).where(PopupNotification.popup_key == popup_key)).scalar_one_or_none()
         if popup is None:
             popup = PopupNotification(
                 popup_key=popup_key,

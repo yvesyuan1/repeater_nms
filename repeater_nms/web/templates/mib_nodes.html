@@ -1,36 +1,161 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <table>
-    <thead>
-      <tr>
-        <th>OID</th>
-        <th>名称</th>
-        <th>权限</th>
-        <th>类型</th>
-        <th>分类</th>
-        <th>轮询</th>
-        <th>Trap 字段</th>
-        <th>SET 预留</th>
-        <th>说明</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for item in nodes %}
-        <tr>
-          <td>{{ item.oid }}</td>
-          <td>{{ item.name }}</td>
-          <td>{{ item.access }}</td>
-          <td>{{ item.data_type }}</td>
-          <td>{{ item.category }}</td>
-          <td>{{ '是' if item.is_pollable else '-' }}</td>
-          <td>{{ '是' if item.is_trap_field else '-' }}</td>
-          <td>{{ '是' if item.is_set_reserved else '-' }}</td>
-          <td>{{ item.description }}</td>
-        </tr>
-      {% else %}
-        <tr><td colspan="9">暂无 MIB 节点。</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <form method="get" class="filters" style="margin-bottom:18px;">
+    <label style="min-width:280px;">
+      <div class="muted">设备模板</div>
+      <select name="profile_code" onchange="this.form.submit()">
+        {% for item in profiles %}
+          <option value="{{ item.profile_code }}" {% if selected_profile and selected_profile.profile_code == item.profile_code %}selected{% endif %}>
+            {{ item.vendor }} {{ item.model }} / {{ item.category }}
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+  </form>
+
+  {% if selected_profile %}
+    <div class="grid cards">
+      <div class="card">
+        <div class="label">模板编码</div>
+        <div class="value" style="font-size:20px;">{{ selected_profile.profile_code }}</div>
+      </div>
+      <div class="card">
+        <div class="label">厂家 / 型号</div>
+        <div class="value" style="font-size:20px;">{{ selected_profile.vendor }} {{ selected_profile.model }}</div>
+      </div>
+      <div class="card">
+        <div class="label">类别</div>
+        <div class="value" style="font-size:20px;">{{ selected_profile.category }}</div>
+      </div>
+    </div>
+
+    <section class="card" style="margin-top:18px;">
+      <h3 style="margin-top:0;">采集策略</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>分组</th>
+            <th>中文名称</th>
+            <th>节点名</th>
+            <th>OID</th>
+            <th>采集周期</th>
+            <th>首页展示</th>
+            <th>卡片展示</th>
+            <th>判断规则</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in strategies %}
+            <tr>
+              <td>{{ item.category|upper if item.category else '-' }}</td>
+              <td>{{ item.node_name_zh or '-' }}</td>
+              <td>{{ item.node_name }}</td>
+              <td>{{ item.oid }}</td>
+              <td>{{ item.poll_interval_seconds }} 秒</td>
+              <td>{{ '是' if item.show_in_overview else '-' }}</td>
+              <td>{{ '是' if item.show_in_device_card else '-' }}</td>
+              <td title="{{ item.notes or '' }}">
+                {% if item.judge_type == 'enum_equals' %}
+                  枚举值命中正常集合
+                {% else %}
+                  未配置
+                {% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="8">暂无采集策略。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card" style="margin-top:18px;">
+      <h3 style="margin-top:0;">MIB 节点</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>分组</th>
+            <th>中文名称</th>
+            <th>节点名</th>
+            <th>OID</th>
+            <th>权限</th>
+            <th>类型</th>
+            <th>Trap 字段</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in nodes %}
+            <tr>
+              <td>{{ item.category_zh or item.category }}</td>
+              <td>{{ item.name_zh or '-' }}</td>
+              <td>{{ item.name }}</td>
+              <td>{{ item.oid }}</td>
+              <td>{{ item.access }}</td>
+              <td>{{ item.data_type }}</td>
+              <td>{{ '是' if item.is_trap_field else '-' }}</td>
+              <td>{{ item.description }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="8">暂无 MIB 节点。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card" style="margin-top:18px;">
+      <h3 style="margin-top:0;">枚举翻译</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>枚举名</th>
+            <th>编码</th>
+            <th>标签</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in enums %}
+            <tr>
+              <td>{{ item.enum_name }}</td>
+              <td>{{ item.code }}</td>
+              <td>{{ item.label }}</td>
+              <td>{{ item.description }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4">暂无枚举数据。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card" style="margin-top:18px;">
+      <h3 style="margin-top:0;">告警规则</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>告警 ID</th>
+            <th>默认级别</th>
+            <th>生成活动告警</th>
+            <th>弹窗</th>
+            <th>分类</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in alarm_rules %}
+            <tr>
+              <td>{{ item.alarm_id }}</td>
+              <td>{{ item.default_severity|severity_label }}</td>
+              <td>{{ '是' if item.should_create_active else '-' }}</td>
+              <td>{{ '是' if item.should_popup else '-' }}</td>
+              <td>{{ item.category }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5">暂无告警规则。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  {% endif %}
 {% endblock %}

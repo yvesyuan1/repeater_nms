@@ -26,25 +26,34 @@ from repeater_nms.db.models import (
     ActiveAlarm,
     AlarmAckLog,
     AlarmEvent,
+    AlarmRule,
     Device,
     DeviceLatestValue,
+    DeviceProfile,
+    MibEnum,
     MibNode,
     OperationLog,
+    PollingStrategy,
     PopupNotification,
     TrapEvent,
     User,
 )
+from repeater_nms.db.seed_data import DEFAULT_PROFILE_CODE
 from repeater_nms.web.db import get_db_session
 from repeater_nms.web.extensions import login_manager
 from repeater_nms.web.security import role_required
 from repeater_nms.web.utils import (
     build_captcha_svg,
     build_trap_summary,
-    device_name_label,
+    compute_device_overview_status,
     format_dt,
     generate_captcha_code,
+    health_label,
+    highest_severity,
     log_operation,
+    overview_status_label,
     parse_local_datetime,
+    profile_title,
     redis_client_from_app,
     role_description,
     role_label,
@@ -72,16 +81,6 @@ def _base_context(**extra):
     }
 
 
-def _device_map(session) -> dict[int, str]:
-    return {item.id: item.name for item in session.execute(select(Device)).scalars().all()}
-
-
-def _device_name(device_id: int | None, device_names: dict[int, str]) -> str:
-    if device_id is None:
-        return "未知设备"
-    return device_names.get(device_id, f"设备#{device_id}")
-
-
 def _refresh_captcha() -> None:
     flask_session["captcha_code"] = generate_captcha_code(current_app.config["CAPTCHA_LENGTH"])
 
@@ -92,7 +91,40 @@ def _captcha_ok(user_input: str) -> bool:
     return bool(expect and actual and expect == actual)
 
 
-def _trap_payload(item: TrapEvent, device_name: str) -> dict[str, Any]:
+def _device_map(session) -> dict[int, Device]:
+    return {item.id: item for item in session.execute(select(Device)).scalars().all()}
+
+
+def _profile_map(session) -> dict[str, DeviceProfile]:
+    return {item.profile_code: item for item in session.execute(select(DeviceProfile)).scalars().all()}
+
+
+def _metric_text(value: Any) -> str:
+    if value is None:
+        return "-"
+    text = str(value).strip()
+    if not text or text.lower() in {"null", "none", "nan"}:
+        return "-"
+    return text
+
+
+def _metric_value(row: DeviceLatestValue | None, *, prefer_enum: bool = False) -> str:
+    if row is None:
+        return "-"
+    candidates = []
+    if prefer_enum:
+        candidates.extend([row.enum_text, row.display_value, row.value_text, row.value_raw])
+    else:
+        candidates.extend([row.display_value, row.enum_text, row.value_text, row.value_raw])
+    for item in candidates:
+        text = _metric_text(item)
+        if text != "-":
+            return text
+    return "-"
+
+
+def _trap_payload(item: TrapEvent, device: Device | None, profile: DeviceProfile | None) -> dict[str, Any]:
+    device_name = device.name if device else "未知设备"
     summary_zh = build_trap_summary(
         device_name=device_name,
         trap_name=item.trap_name,
@@ -111,6 +143,7 @@ def _trap_payload(item: TrapEvent, device_name: str) -> dict[str, Any]:
         "source_ip": item.source_ip,
         "device_id": item.device_id,
         "device_name": device_name,
+        "profile_title": profile_title(profile.vendor if profile else None, profile.model if profile else None),
         "trap_type": item.trap_type,
         "trap_type_label": trap_type_label(item.trap_type),
         "trap_name": item.trap_name,
@@ -126,6 +159,80 @@ def _trap_payload(item: TrapEvent, device_name: str) -> dict[str, Any]:
         "summary_zh": summary_zh,
         "translated_json": item.translated_json,
     }
+
+
+def _collect_device_overviews(session) -> list[dict[str, Any]]:
+    devices = session.execute(select(Device).order_by(Device.name.asc())).scalars().all()
+    profiles = _profile_map(session)
+    strategies = session.execute(select(PollingStrategy).where(PollingStrategy.is_enabled.is_(True))).scalars().all()
+    active_alarms = session.execute(select(ActiveAlarm)).scalars().all()
+    latest_values = session.execute(select(DeviceLatestValue)).scalars().all()
+    recent_traps = session.execute(select(TrapEvent).order_by(TrapEvent.received_at.desc(), TrapEvent.id.desc())).scalars().all()
+
+    active_by_device: dict[int, list[ActiveAlarm]] = {}
+    for item in active_alarms:
+        if item.device_id is None:
+            continue
+        active_by_device.setdefault(item.device_id, []).append(item)
+
+    strategy_names_by_profile: dict[str, set[str]] = {}
+    for item in strategies:
+        strategy_names_by_profile.setdefault(item.profile_code, set()).add(item.node_name)
+
+    latest_by_device: dict[int, dict[str, DeviceLatestValue]] = {}
+    for item in latest_values:
+        profile_code = item.profile_code or DEFAULT_PROFILE_CODE
+        strategy_names = strategy_names_by_profile.get(profile_code)
+        metric_key = item.oid_name or item.oid
+        if strategy_names and item.oid_name and item.oid_name not in strategy_names:
+            continue
+        latest_by_device.setdefault(item.device_id, {})[metric_key] = item
+
+    recent_trap_by_device: dict[int, TrapEvent] = {}
+    for item in recent_traps:
+        if item.device_id is None:
+            continue
+        recent_trap_by_device.setdefault(item.device_id, item)
+
+    overviews: list[dict[str, Any]] = []
+    for device in devices:
+        profile = profiles.get(device.device_profile_code)
+        current_alarms = [item for item in active_by_device.get(device.id, []) if item.is_open]
+        highest_alarm = highest_severity([item.severity for item in current_alarms if item.severity])
+        latest_rows = latest_by_device.get(device.id, {})
+        health_statuses = [row.health_status for row in latest_rows.values() if row.health_status]
+        overview_status = compute_device_overview_status(
+            last_poll_status=device.last_poll_status,
+            highest_alarm_severity=highest_alarm,
+            health_statuses=health_statuses,
+        )
+        aps_active = latest_rows.get("apsActive")
+        aps_stat = latest_rows.get("apsStat")
+        dfp_active = latest_rows.get("dfpActive")
+        overviews.append(
+            {
+                "device": device,
+                "profile": profile,
+                "profile_title": profile_title(profile.vendor if profile else None, profile.model if profile else None),
+                "vendor": None if profile is None else profile.vendor,
+                "model": None if profile is None else profile.model,
+                "active_alarm_count": len(current_alarms),
+                "highest_alarm_severity": highest_alarm,
+                "highest_alarm_label": severity_label(highest_alarm),
+                "recent_trap_at": None if device.id not in recent_trap_by_device else format_dt(recent_trap_by_device[device.id].received_at),
+                "recent_poll_at": format_dt(device.last_polled_at),
+                "recent_error": "-" if device.last_poll_status == "ok" else _metric_text(device.last_poll_message),
+                "aps_active": _metric_value(aps_active),
+                "aps_active_health": None if aps_active is None else aps_active.health_status,
+                "aps_stat": _metric_value(aps_stat, prefer_enum=True),
+                "aps_stat_text": None if aps_stat is None else _metric_text(aps_stat.enum_text or aps_stat.health_reason),
+                "dfp_active": _metric_value(dfp_active),
+                "dfp_active_health": None if dfp_active is None else dfp_active.health_status,
+                "overview_status": overview_status,
+                "overview_status_label": overview_status_label(overview_status),
+            }
+        )
+    return overviews
 
 
 @web_bp.get("/captcha.svg")
@@ -204,28 +311,20 @@ def logout():
 @login_required
 def dashboard():
     session = get_db_session()
-    device_total = session.scalar(select(func.count()).select_from(Device)) or 0
-    enabled_devices = session.scalar(select(func.count()).select_from(Device).where(Device.is_enabled.is_(True))) or 0
-    active_alarm_total = session.scalar(
-        select(func.count()).select_from(ActiveAlarm).where(ActiveAlarm.is_open.is_(True))
-    ) or 0
-    recent_traps = session.execute(
-        select(TrapEvent).order_by(TrapEvent.received_at.desc(), TrapEvent.id.desc()).limit(10)
-    ).scalars().all()
-    recent_devices = session.execute(
-        select(Device).order_by(Device.updated_at.desc(), Device.id.desc()).limit(10)
-    ).scalars().all()
-    device_names = _device_map(session)
-    trap_views = [_trap_payload(item, _device_name(item.device_id, device_names)) for item in recent_traps]
+    overviews = _collect_device_overviews(session)
+    trap_rows = session.execute(select(TrapEvent).order_by(TrapEvent.received_at.desc(), TrapEvent.id.desc()).limit(10)).scalars().all()
+    devices = _device_map(session)
+    profiles = _profile_map(session)
+    traps = [_trap_payload(item, devices.get(item.device_id) if item.device_id else None, profiles.get(item.profile_code or DEFAULT_PROFILE_CODE)) for item in trap_rows]
     return render_template(
         "dashboard.html",
         **_base_context(
-            page_name="总览",
-            device_total=device_total,
-            enabled_devices=enabled_devices,
-            active_alarm_total=active_alarm_total,
-            recent_traps=trap_views,
-            recent_devices=recent_devices,
+            page_name="设备运行总览",
+            device_total=len(overviews),
+            online_devices=sum(1 for item in overviews if item["device"].is_enabled),
+            active_alarm_total=sum(item["active_alarm_count"] for item in overviews),
+            device_overviews=overviews,
+            recent_traps=traps,
         ),
     )
 
@@ -309,6 +408,7 @@ def toggle_user(user_id: int):
 @login_required
 def devices():
     session = get_db_session()
+    profiles = session.execute(select(DeviceProfile).order_by(DeviceProfile.vendor.asc(), DeviceProfile.model.asc())).scalars().all()
     if request.method == "POST":
         if current_user.role not in {"admin", "operator"}:
             return Response(status=403)
@@ -316,12 +416,14 @@ def devices():
         ip = request.form.get("ip", "").strip()
         read_community = request.form.get("read_community", "").strip()
         write_community = request.form.get("write_community", "").strip() or None
+        profile_code = request.form.get("device_profile_code", DEFAULT_PROFILE_CODE).strip() or DEFAULT_PROFILE_CODE
         if not name or not ip or not read_community:
             flash("设备名称、IP 和读团体字不能为空。", "error")
         else:
             device = Device(
                 name=name,
                 ip=ip,
+                device_profile_code=profile_code,
                 snmp_port=int(request.form.get("snmp_port", "161") or 161),
                 trap_port=int(request.form.get("trap_port", "1162") or 1162),
                 snmp_version=request.form.get("snmp_version", "v2c"),
@@ -339,27 +441,17 @@ def devices():
                 action="create_device",
                 target_type="device",
                 target_id=str(device.id),
-                details_json={
-                    "name": device.name,
-                    "ip": device.ip,
-                    "snmp_port": device.snmp_port,
-                    "trap_port": device.trap_port,
-                    "read_community_masked": "***",
-                    "write_community_masked": "***" if write_community else None,
-                },
+                details_json={"name": device.name, "ip": device.ip, "device_profile_code": profile_code},
             )
             session.commit()
             flash("设备已创建。", "success")
             return redirect(url_for("web.devices"))
 
     device_rows = session.execute(select(Device).order_by(Device.id.desc())).scalars().all()
+    profile_map = _profile_map(session)
     return render_template(
         "devices.html",
-        **_base_context(
-            page_name="设备管理",
-            devices=device_rows,
-            collector_hint="采集状态由独立采集服务写入。当前本地试运行如果只启动了页面服务，需要额外执行采集服务或 poll-once 才会出现采集结果。",
-        ),
+        **_base_context(page_name="设备管理", devices=device_rows, profiles=profiles, profile_map=profile_map),
     )
 
 
@@ -370,32 +462,43 @@ def device_detail(device_id: int):
     device = session.get(Device, device_id)
     if device is None:
         return Response("device not found", status=404)
-    latest_values = session.execute(
+    profile = session.execute(select(DeviceProfile).where(DeviceProfile.profile_code == device.device_profile_code)).scalar_one_or_none()
+    strategies = session.execute(
+        select(PollingStrategy)
+        .where(PollingStrategy.profile_code == device.device_profile_code, PollingStrategy.is_enabled.is_(True))
+        .order_by(PollingStrategy.display_order.asc(), PollingStrategy.id.asc())
+    ).scalars().all()
+    latest_values_all = session.execute(
         select(DeviceLatestValue)
         .where(DeviceLatestValue.device_id == device.id)
-        .order_by(DeviceLatestValue.oid.asc())
+        .order_by(DeviceLatestValue.category.asc(), DeviceLatestValue.oid_name.asc())
     ).scalars().all()
+    strategy_map = {item.node_name: item for item in strategies}
+    strategy_rows: list[tuple[int, int, DeviceLatestValue]] = []
+    extra_rows: list[tuple[str, str, DeviceLatestValue]] = []
+    for row in latest_values_all:
+        if row.oid_name in strategy_map:
+            strategy_rows.append((strategy_map[row.oid_name].display_order, row.id, row))
+        elif row.category or row.oid_name_zh:
+            extra_rows.append((row.category or "zzz", row.oid_name or row.oid, row))
+    latest_values = [item for _, _, item in sorted(strategy_rows, key=lambda value: (value[0], value[1]))]
+    latest_values.extend(item for _, _, item in sorted(extra_rows, key=lambda value: (value[0], value[1])))
     recent_traps = session.execute(
-        select(TrapEvent)
-        .where(TrapEvent.device_id == device.id)
-        .order_by(TrapEvent.received_at.desc(), TrapEvent.id.desc())
-        .limit(10)
+        select(TrapEvent).where(TrapEvent.device_id == device.id).order_by(TrapEvent.received_at.desc()).limit(10)
     ).scalars().all()
     active_alarms = session.execute(
-        select(ActiveAlarm)
-        .where(ActiveAlarm.device_id == device.id, ActiveAlarm.is_open.is_(True))
-        .order_by(ActiveAlarm.last_seen_at.desc())
+        select(ActiveAlarm).where(ActiveAlarm.device_id == device.id, ActiveAlarm.is_open.is_(True)).order_by(ActiveAlarm.last_seen_at.desc())
     ).scalars().all()
-    trap_views = [_trap_payload(item, device.name) for item in recent_traps]
+    trap_views = [_trap_payload(item, device, profile) for item in recent_traps]
     return render_template(
         "device_detail.html",
         **_base_context(
             page_name=f"设备详情 - {device.name}",
             device=device,
+            profile=profile,
             latest_values=latest_values,
             recent_traps=trap_views,
             active_alarms=active_alarms,
-            collector_hint="如果这里还是空白，通常不是页面问题，而是当前还没有独立采集服务轮询并写入数据。",
         ),
     )
 
@@ -406,11 +509,13 @@ def device_detail(device_id: int):
 def edit_device(device_id: int):
     session = get_db_session()
     device = session.get(Device, device_id)
+    profiles = session.execute(select(DeviceProfile).order_by(DeviceProfile.vendor.asc(), DeviceProfile.model.asc())).scalars().all()
     if device is None:
         return Response("device not found", status=404)
     if request.method == "POST":
         device.name = request.form.get("name", device.name).strip() or device.name
         device.ip = request.form.get("ip", device.ip).strip() or device.ip
+        device.device_profile_code = request.form.get("device_profile_code", device.device_profile_code).strip() or device.device_profile_code
         device.snmp_port = int(request.form.get("snmp_port", str(device.snmp_port)) or device.snmp_port)
         device.trap_port = int(request.form.get("trap_port", str(device.trap_port)) or device.trap_port)
         device.snmp_version = request.form.get("snmp_version", device.snmp_version)
@@ -429,19 +534,12 @@ def edit_device(device_id: int):
             action="edit_device",
             target_type="device",
             target_id=str(device.id),
-            details_json={
-                "name": device.name,
-                "ip": device.ip,
-                "snmp_port": device.snmp_port,
-                "trap_port": device.trap_port,
-                "read_community_masked": "***",
-                "write_community_masked": "***" if device.write_community else None,
-            },
+            details_json={"name": device.name, "ip": device.ip, "device_profile_code": device.device_profile_code},
         )
         session.commit()
         flash("设备已更新。", "success")
         return redirect(url_for("web.device_detail", device_id=device.id))
-    return render_template("device_form.html", **_base_context(page_name=f"编辑设备 - {device.name}", device=device))
+    return render_template("device_form.html", **_base_context(page_name=f"编辑设备 - {device.name}", device=device, profiles=profiles))
 
 
 @web_bp.post("/devices/<int:device_id>/toggle")
@@ -472,8 +570,31 @@ def toggle_device(device_id: int):
 @login_required
 def mib_nodes():
     session = get_db_session()
-    rows = session.execute(select(MibNode).order_by(MibNode.oid.asc())).scalars().all()
-    return render_template("mib_nodes.html", **_base_context(page_name="MIB 节点", nodes=rows))
+    profiles = session.execute(select(DeviceProfile).order_by(DeviceProfile.vendor.asc(), DeviceProfile.model.asc())).scalars().all()
+    selected_code = request.args.get("profile_code", "").strip() or (profiles[0].profile_code if profiles else DEFAULT_PROFILE_CODE)
+    selected_profile = next((item for item in profiles if item.profile_code == selected_code), None)
+    nodes = session.execute(select(MibNode).where(MibNode.profile_code == selected_code).order_by(MibNode.category.asc(), MibNode.oid.asc())).scalars().all()
+    strategies = session.execute(
+        select(PollingStrategy).where(PollingStrategy.profile_code == selected_code).order_by(PollingStrategy.display_order.asc(), PollingStrategy.id.asc())
+    ).scalars().all()
+    enums = session.execute(
+        select(MibEnum).where(MibEnum.profile_code == selected_code).order_by(MibEnum.enum_name.asc(), MibEnum.code.asc())
+    ).scalars().all()
+    alarm_rules = session.execute(
+        select(AlarmRule).where(AlarmRule.profile_code == selected_code).order_by(AlarmRule.category.asc(), AlarmRule.alarm_id.asc())
+    ).scalars().all()
+    return render_template(
+        "mib_nodes.html",
+        **_base_context(
+            page_name="设备模板",
+            profiles=profiles,
+            selected_profile=selected_profile,
+            nodes=nodes,
+            strategies=strategies,
+            enums=enums,
+            alarm_rules=alarm_rules,
+        ),
+    )
 
 
 @web_bp.get("/traps")
@@ -498,17 +619,19 @@ def traps():
                 TrapEvent.raw_summary.ilike(f"%{keyword}%"),
             )
         )
-    stmt = stmt.order_by(TrapEvent.received_at.desc(), TrapEvent.id.desc()).limit(100)
-    trap_rows = session.execute(stmt).scalars().all()
-    devices = session.execute(select(Device).order_by(Device.name.asc())).scalars().all()
-    device_names = _device_map(session)
-    trap_views = [_trap_payload(item, _device_name(item.device_id, device_names)) for item in trap_rows]
+    trap_rows = session.execute(stmt.order_by(TrapEvent.received_at.desc(), TrapEvent.id.desc()).limit(100)).scalars().all()
+    devices = _device_map(session)
+    profiles = _profile_map(session)
+    trap_views = [
+        _trap_payload(item, devices.get(item.device_id) if item.device_id else None, profiles.get(item.profile_code or DEFAULT_PROFILE_CODE))
+        for item in trap_rows
+    ]
     return render_template(
         "traps.html",
         **_base_context(
             page_name="Trap 实时页面",
             traps=trap_views,
-            devices=devices,
+            devices=list(devices.values()),
             filter_severity=severity,
             filter_device_id=device_id,
             filter_keyword=keyword,
@@ -523,70 +646,75 @@ def alarms():
     device_id = request.args.get("device_id", "").strip()
     severity = request.args.get("severity", "").strip()
     ack_state = request.args.get("ack_state", "").strip()
-    open_state = request.args.get("open_state", "open").strip() or "open"
+    open_state = request.args.get("open_state", "").strip()
     history_status = request.args.get("history_status", "").strip()
     keyword = request.args.get("keyword", "").strip()
     start_at = request.args.get("start_at", "").strip()
     end_at = request.args.get("end_at", "").strip()
 
-    active_stmt = select(ActiveAlarm)
-    if device_id:
-        active_stmt = active_stmt.where(ActiveAlarm.device_id == int(device_id))
-    if severity:
-        active_stmt = active_stmt.where(ActiveAlarm.severity == severity)
-    if ack_state == "ack":
-        active_stmt = active_stmt.where(ActiveAlarm.is_acknowledged.is_(True))
-    elif ack_state == "unack":
-        active_stmt = active_stmt.where(ActiveAlarm.is_acknowledged.is_(False))
-    if open_state == "open":
-        active_stmt = active_stmt.where(ActiveAlarm.is_open.is_(True))
-    elif open_state == "closed":
-        active_stmt = active_stmt.where(ActiveAlarm.is_open.is_(False))
-    if keyword:
-        active_stmt = active_stmt.where(
-            or_(
-                ActiveAlarm.alarm_obj.ilike(f"%{keyword}%"),
-                ActiveAlarm.alarm_id.ilike(f"%{keyword}%"),
-                ActiveAlarm.notes.ilike(f"%{keyword}%"),
-            )
-        )
-    active_stmt = active_stmt.order_by(ActiveAlarm.is_open.desc(), ActiveAlarm.last_seen_at.desc(), ActiveAlarm.id.desc())
+    events = session.execute(select(AlarmEvent).order_by(AlarmEvent.occurred_at.desc(), AlarmEvent.id.desc()).limit(500)).scalars().all()
+    active_map = {item.id: item for item in session.execute(select(ActiveAlarm)).scalars().all()}
+    devices = session.execute(select(Device).order_by(Device.name.asc())).scalars().all()
+    device_names = {item.id: item.name for item in devices}
 
-    history_stmt = select(AlarmEvent)
-    if device_id:
-        history_stmt = history_stmt.where(AlarmEvent.device_id == int(device_id))
-    if severity:
-        history_stmt = history_stmt.where(AlarmEvent.severity == severity)
-    if history_status:
-        history_stmt = history_stmt.where(AlarmEvent.status == history_status)
-    if keyword:
-        history_stmt = history_stmt.where(
-            or_(
-                AlarmEvent.alarm_obj.ilike(f"%{keyword}%"),
-                AlarmEvent.alarm_id.ilike(f"%{keyword}%"),
-                AlarmEvent.message.ilike(f"%{keyword}%"),
-            )
-        )
     start_dt = parse_local_datetime(start_at)
     end_dt = parse_local_datetime(end_at, end_of_day=True)
-    if start_dt is not None:
-        history_stmt = history_stmt.where(AlarmEvent.occurred_at >= start_dt)
-    if end_dt is not None:
-        history_stmt = history_stmt.where(AlarmEvent.occurred_at < end_dt)
-    history_stmt = history_stmt.order_by(AlarmEvent.occurred_at.desc(), AlarmEvent.id.desc()).limit(300)
+    rows: list[dict[str, Any]] = []
+    for item in events:
+        active_alarm = active_map.get(item.active_alarm_id) if item.active_alarm_id else None
+        row = {
+            "event": item,
+            "active_alarm": active_alarm,
+            "device_name": device_names.get(item.device_id, "未知设备"),
+            "severity_label": severity_label(item.severity),
+            "status_label": status_label(item.status),
+            "active_state_label": "活动中" if active_alarm and active_alarm.is_open else "已关闭",
+            "ack_state_label": "已确认" if active_alarm and active_alarm.is_acknowledged else "未确认",
+        }
+        if device_id and str(item.device_id or "") != device_id:
+            continue
+        if severity and item.severity != severity:
+            continue
+        if history_status and item.status != history_status:
+            continue
+        if ack_state == "ack" and not (active_alarm and active_alarm.is_acknowledged):
+            continue
+        if ack_state == "unack" and active_alarm and active_alarm.is_acknowledged:
+            continue
+        if open_state == "open" and not (active_alarm and active_alarm.is_open):
+            continue
+        if open_state == "closed" and active_alarm and active_alarm.is_open:
+            continue
+        if start_dt and item.occurred_at < start_dt:
+            continue
+        if end_dt and item.occurred_at >= end_dt:
+            continue
+        if keyword:
+            haystack = " ".join(
+                filter(
+                    None,
+                    [
+                        item.alarm_obj,
+                        item.alarm_id,
+                        item.message,
+                        None if active_alarm is None else active_alarm.notes,
+                    ],
+                )
+            ).lower()
+            if keyword.lower() not in haystack:
+                continue
+        rows.append(row)
 
-    active_alarms = session.execute(active_stmt).scalars().all()
-    history = session.execute(history_stmt).scalars().all()
-    devices = session.execute(select(Device).order_by(Device.name.asc())).scalars().all()
-    device_names = _device_map(session)
+    active_count = sum(1 for item in active_map.values() if item.is_open)
+    unacked_count = sum(1 for item in active_map.values() if item.is_open and not item.is_acknowledged)
     return render_template(
         "alarms.html",
         **_base_context(
             page_name="告警中心",
-            active_alarms=active_alarms,
-            alarm_history=history,
+            alarm_rows=rows,
             devices=devices,
-            device_names=device_names,
+            active_count=active_count,
+            unacked_count=unacked_count,
             filters={
                 "device_id": device_id,
                 "severity": severity,
@@ -616,13 +744,7 @@ def ack_alarm(alarm_id: int):
     note = request.form.get("note", "").strip() or None
     if note:
         alarm.notes = note
-    session.add(
-        AlarmAckLog(
-            active_alarm_id=alarm.id,
-            user_id=current_user.id,
-            ack_note=note,
-        )
-    )
+    session.add(AlarmAckLog(active_alarm_id=alarm.id, user_id=current_user.id, ack_note=note))
     log_operation(
         session,
         user_id=current_user.id,
@@ -633,7 +755,7 @@ def ack_alarm(alarm_id: int):
         details_json={"note": note},
     )
     session.commit()
-    flash("活动告警已确认。确认并不等于关闭，只有收到 close/cleared 后才会离开活动告警。", "success")
+    flash("告警已确认。", "success")
     return redirect(request.referrer or url_for("web.alarms"))
 
 
@@ -641,9 +763,7 @@ def ack_alarm(alarm_id: int):
 @login_required
 def logs():
     session = get_db_session()
-    rows = session.execute(
-        select(OperationLog).order_by(OperationLog.created_at.desc(), OperationLog.id.desc()).limit(200)
-    ).scalars().all()
+    rows = session.execute(select(OperationLog).order_by(OperationLog.created_at.desc(), OperationLog.id.desc()).limit(200)).scalars().all()
     return render_template("logs.html", **_base_context(page_name="操作日志", logs=rows))
 
 
@@ -670,15 +790,21 @@ def api_trap_events():
             )
         )
     rows = session.execute(stmt.order_by(TrapEvent.received_at.desc(), TrapEvent.id.desc()).limit(100)).scalars().all()
-    device_names = _device_map(session)
-    return jsonify([_trap_payload(item, _device_name(item.device_id, device_names)) for item in rows])
+    devices = _device_map(session)
+    profiles = _profile_map(session)
+    return jsonify(
+        [
+            _trap_payload(item, devices.get(item.device_id) if item.device_id else None, profiles.get(item.profile_code or DEFAULT_PROFILE_CODE))
+            for item in rows
+        ]
+    )
 
 
 @web_bp.get("/api/popup-notifications")
 @login_required
 def api_popup_notifications():
     session = get_db_session()
-    device_names = _device_map(session)
+    device_names = {item.id: item.name for item in session.execute(select(Device)).scalars().all()}
     items = session.execute(
         select(PopupNotification)
         .where(PopupNotification.is_acknowledged.is_(False), PopupNotification.status == "pending")
@@ -696,7 +822,7 @@ def api_popup_notifications():
                 "alarm_id": item.alarm_id,
                 "status": item.status,
                 "status_label": status_label(item.status),
-                "device_name": _device_name(item.device_id, device_names),
+                "device_name": device_names.get(item.device_id, "未知设备"),
                 "created_at": item.created_at.astimezone(timezone.utc).isoformat() if item.created_at else None,
             }
             for item in items
@@ -759,11 +885,7 @@ def event_stream():
             if pubsub is not None:
                 pubsub.close()
 
-    return Response(
-        generate(),
-        mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return Response(generate(), mimetype="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @web_bp.get("/healthz")

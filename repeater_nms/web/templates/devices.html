@@ -1,15 +1,21 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <div class="soft-note">{{ collector_hint }}</div>
-
-  <div class="grid" style="grid-template-columns: 380px 1fr;">
+  <div class="grid" style="grid-template-columns: 420px 1fr;">
     {% if current_user.role in ['admin', 'operator'] %}
       <section class="card">
         <h3 style="margin-top:0;">新增设备</h3>
         <form method="post" class="form-grid">
           <label><div class="muted">设备名称</div><input type="text" name="name" required></label>
           <label><div class="muted">IP</div><input type="text" name="ip" required></label>
+          <label>
+            <div class="muted">设备模板</div>
+            <select name="device_profile_code">
+              {% for item in profiles %}
+                <option value="{{ item.profile_code }}">{{ item.vendor }} {{ item.model }} / {{ item.category }}</option>
+              {% endfor %}
+            </select>
+          </label>
           <label><div class="muted">SNMP 端口</div><input type="number" name="snmp_port" value="161"></label>
           <label><div class="muted">Trap 端口</div><input type="number" name="trap_port" value="1162"></label>
           <label>
@@ -31,7 +37,7 @@
           <tr>
             <th>名称</th>
             <th>IP</th>
-            <th>读团体字</th>
+            <th>模板</th>
             <th>状态</th>
             <th>轮询状态</th>
             <th>操作</th>
@@ -39,10 +45,11 @@
         </thead>
         <tbody>
           {% for item in devices %}
+            {% set profile = profile_map.get(item.device_profile_code) %}
             <tr>
               <td><a href="{{ url_for('web.device_detail', device_id=item.id) }}">{{ item.name }}</a></td>
               <td>{{ item.ip }}</td>
-              <td>{{ item.read_community|masked }}</td>
+              <td>{{ profile.vendor if profile else '-' }} {{ profile.model if profile else item.device_profile_code }}</td>
               <td><span class="tag {{ 'ok' if item.is_enabled else 'error' }}">{{ '启用' if item.is_enabled else '停用' }}</span></td>
               <td>
                 <span class="tag {{ item.last_poll_status or '' }}">{{ item.last_poll_status|poll_status_label }}</span>

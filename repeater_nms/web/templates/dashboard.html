@@ -8,67 +8,91 @@
     </div>
     <div class="card">
       <div class="label">启用设备数</div>
-      <div class="value">{{ enabled_devices }}</div>
+      <div class="value">{{ online_devices }}</div>
     </div>
     <div class="card">
-      <div class="label">活动告警数</div>
+      <div class="label">活动告警总数</div>
       <div class="value">{{ active_alarm_total }}</div>
     </div>
   </div>
 
-  <div class="grid" style="grid-template-columns:1.2fr 1fr;margin-top:18px;">
-    <section class="card">
-      <h3 style="margin-top:0;">最近 Trap</h3>
-      <table>
-        <thead>
+  <section class="card" style="margin-top:18px;">
+    <h3 style="margin-top:0;">设备运行总览</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>设备名称</th>
+          <th>IP</th>
+          <th>厂家/型号</th>
+          <th>当前状态</th>
+          <th>采集状态</th>
+          <th>活动告警数</th>
+          <th>最高告警</th>
+          <th>最近 Trap</th>
+          <th>最近采集</th>
+          <th>最近错误</th>
+          <th>APS 活跃侧</th>
+          <th>APS 状态</th>
+          <th>DFP 活跃侧</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in device_overviews %}
           <tr>
-            <th>时间</th>
-            <th>来源 IP</th>
-            <th>设备</th>
-            <th>告警</th>
-            <th>级别</th>
+            <td><a href="{{ url_for('web.device_detail', device_id=item.device.id) }}">{{ item.device.name }}</a></td>
+            <td>{{ item.device.ip }}</td>
+            <td>{{ item.profile_title }}</td>
+            <td><span class="tag {{ item.overview_status }}">{{ item.overview_status_label }}</span></td>
+            <td><span class="tag {{ item.device.last_poll_status or '' }}">{{ item.device.last_poll_status|poll_status_label }}</span></td>
+            <td>{{ item.active_alarm_count }}</td>
+            <td>
+              {% if item.highest_alarm_severity %}
+                <span class="tag {{ item.highest_alarm_severity }}">{{ item.highest_alarm_label }}</span>
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td>{{ item.recent_trap_at }}</td>
+            <td>{{ item.recent_poll_at }}</td>
+            <td>{{ item.recent_error }}</td>
+            <td>{{ item.aps_active }}</td>
+            <td title="{{ item.aps_stat_text or '' }}">{{ item.aps_stat }}</td>
+            <td>{{ item.dfp_active }}</td>
           </tr>
-        </thead>
-        <tbody>
-          {% for item in recent_traps %}
-            <tr>
-              <td>{{ item.received_at }}</td>
-              <td>{{ item.source_ip }}</td>
-              <td>{{ item.device_name }}</td>
-              <td>{{ item.alarm_id or item.trap_name_label }}</td>
-              <td><span class="tag {{ item.severity or '' }}">{{ item.severity_label }}</span></td>
-            </tr>
-          {% else %}
-            <tr><td colspan="5">暂无 Trap 数据。</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </section>
-    <section class="card">
-      <h3 style="margin-top:0;">最近采集状态</h3>
-      <table>
-        <thead>
+        {% else %}
+          <tr><td colspan="13">暂无设备。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card" style="margin-top:18px;">
+    <h3 style="margin-top:0;">最近 Trap</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>时间</th>
+          <th>设备</th>
+          <th>对象</th>
+          <th>告警</th>
+          <th>级别</th>
+          <th>状态</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in recent_traps %}
           <tr>
-            <th>设备</th>
-            <th>状态</th>
-            <th>最后轮询</th>
+            <td>{{ item.received_at }}</td>
+            <td>{{ item.device_name }}</td>
+            <td>{{ item.alarm_obj or '-' }}</td>
+            <td>{{ item.alarm_id or item.trap_name_label }}</td>
+            <td><span class="tag {{ item.severity or '' }}">{{ item.severity_label }}</span></td>
+            <td><span class="tag {{ item.status or '' }}">{{ item.status_label }}</span></td>
           </tr>
-        </thead>
-        <tbody>
-          {% for item in recent_devices %}
-            <tr>
-              <td><a href="{{ url_for('web.device_detail', device_id=item.id) }}">{{ item.name }}</a></td>
-              <td>
-                <span class="tag {{ item.last_poll_status or '' }}">{{ item.last_poll_status|poll_status_label }}</span>
-                <div class="muted" style="margin-top:4px;">{{ item.last_poll_status|poll_status_desc(item.last_poll_message) }}</div>
-              </td>
-              <td>{{ item.last_polled_at|dt }}</td>
-            </tr>
-          {% else %}
-            <tr><td colspan="3">暂无设备。</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </section>
-  </div>
+        {% else %}
+          <tr><td colspan="6">暂无 Trap 数据。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
 {% endblock %}

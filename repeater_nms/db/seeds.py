@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -8,8 +7,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from werkzeug.security import generate_password_hash
 
-from repeater_nms.db.models import AlarmRule, MibEnum, MibNode, User
-from repeater_nms.db.seed_data import ALARM_RULE_SEEDS, MIB_ENUM_SEEDS, MIB_NODE_SEEDS
+from repeater_nms.db.models import AlarmRule, DeviceProfile, MibEnum, MibNode, PollingStrategy, User
+from repeater_nms.db.seed_data import (
+    ALARM_RULE_SEEDS,
+    DEVICE_PROFILE_SEEDS,
+    MIB_ENUM_SEEDS,
+    MIB_NODE_SEEDS,
+    POLLING_STRATEGY_SEEDS,
+)
 
 
 @dataclass
@@ -35,7 +40,7 @@ def _upsert_one(
     changed = False
     if update_existing:
         for key, value in values.items():
-            if getattr(instance, key) != value:
+            if getattr(instance, key, None) != value:
                 setattr(instance, key, value)
                 changed = True
     return "updated" if changed else "unchanged"
@@ -50,6 +55,15 @@ def _apply_stats(stats: SeedStats, result: str) -> None:
         stats.unchanged += 1
 
 
+def seed_device_profiles(session: Session) -> SeedStats:
+    stats = SeedStats()
+    for item in DEVICE_PROFILE_SEEDS:
+        lookup = {"profile_code": item["profile_code"]}
+        values = {key: value for key, value in item.items() if key != "profile_code"}
+        _apply_stats(stats, _upsert_one(session, DeviceProfile, lookup, values))
+    return stats
+
+
 def seed_mib_nodes(session: Session) -> SeedStats:
     stats = SeedStats()
     for item in MIB_NODE_SEEDS:
@@ -61,18 +75,37 @@ def seed_mib_nodes(session: Session) -> SeedStats:
 
 def seed_mib_enums(session: Session) -> SeedStats:
     stats = SeedStats()
-    for enum_name, code, label, description in MIB_ENUM_SEEDS:
+    for profile_code, enum_name, code, label, description in MIB_ENUM_SEEDS:
         lookup = {"enum_name": enum_name, "code": code}
-        values = {"label": label, "description": description}
+        values = {"profile_code": profile_code, "label": label, "description": description}
         _apply_stats(stats, _upsert_one(session, MibEnum, lookup, values))
+    return stats
+
+
+def seed_polling_strategies(session: Session) -> SeedStats:
+    stats = SeedStats()
+    nodes_by_name = {
+        (node.profile_code, node.name): node
+        for node in session.execute(select(MibNode)).scalars().all()
+    }
+    for item in POLLING_STRATEGY_SEEDS:
+        lookup = {"profile_code": item["profile_code"], "node_name": item["node_name"]}
+        node = nodes_by_name.get((item["profile_code"], item["node_name"]))
+        values = {
+            key: value
+            for key, value in item.items()
+            if key not in {"profile_code", "node_name"}
+        }
+        values["mib_node_id"] = None if node is None else node.id
+        _apply_stats(stats, _upsert_one(session, PollingStrategy, lookup, values))
     return stats
 
 
 def seed_alarm_rules(session: Session) -> SeedStats:
     stats = SeedStats()
     for item in ALARM_RULE_SEEDS:
-        lookup = {"alarm_id": item["alarm_id"]}
-        values = {key: value for key, value in item.items() if key != "alarm_id"}
+        lookup = {"profile_code": item["profile_code"], "alarm_id": item["alarm_id"]}
+        values = {key: value for key, value in item.items() if key not in {"profile_code", "alarm_id"}}
         _apply_stats(stats, _upsert_one(session, AlarmRule, lookup, values))
     return stats
 
@@ -109,8 +142,10 @@ def ensure_admin_user(session: Session, username: str, admin_password: str | Non
 
 def seed_everything(session: Session, admin_username: str, admin_password: str | None) -> dict[str, SeedStats]:
     return {
+        "device_profiles": seed_device_profiles(session),
         "mib_nodes": seed_mib_nodes(session),
         "mib_enums": seed_mib_enums(session),
+        "polling_strategies": seed_polling_strategies(session),
         "alarm_rules": seed_alarm_rules(session),
         "admin_user": ensure_admin_user(session, admin_username, admin_password),
     }

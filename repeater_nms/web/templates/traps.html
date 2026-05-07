@@ -1,10 +1,6 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <div class="soft-note">
-    这里展示最近 100 条 Trap 事件。实时事件通过 SSE 推送，同一个 Trap PDU 拆分出的多条告警会分别显示，但保留相同的 PDU ID，便于排障回溯。
-  </div>
-
   <div class="filters">
     <form method="get" class="filters" style="width:100%;">
       <label style="min-width:180px;">

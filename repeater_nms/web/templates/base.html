@@ -12,7 +12,6 @@
         --text: #1c2733;
         --muted: #617286;
         --brand: #0f5c7a;
-        --brand-soft: #e6f3f8;
         --ok: #217346;
         --warn: #b26a00;
         --danger: #b42318;
@@ -69,9 +68,7 @@
         color: rgba(238, 245, 251, 0.72);
         line-height: 1.6;
       }
-      .content {
-        padding: 24px;
-      }
+      .content { padding: 24px; }
       .topbar {
         display: flex;
         align-items: center;
@@ -97,13 +94,8 @@
         box-shadow: var(--shadow);
         padding: 20px;
       }
-      .grid {
-        display: grid;
-        gap: 16px;
-      }
-      .grid.cards {
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      }
+      .grid { display: grid; gap: 16px; }
+      .grid.cards { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
       .card {
         padding: 18px;
         border: 1px solid var(--line);
@@ -127,9 +119,7 @@
         margin-bottom: 16px;
       }
       form.inline { display: inline; }
-      input, select, textarea, button {
-        font: inherit;
-      }
+      input, select, textarea, button { font: inherit; }
       input, select, textarea {
         width: 100%;
         padding: 10px 12px;
@@ -154,17 +144,13 @@
         background: #eaf0f5;
         color: var(--text);
       }
-      button.danger {
-        background: var(--danger);
-      }
+      button.danger { background: var(--danger); }
       .form-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 14px;
       }
-      .form-grid .full {
-        grid-column: 1 / -1;
-      }
+      .form-grid .full { grid-column: 1 / -1; }
       table {
         width: 100%;
         border-collapse: collapse;
@@ -190,9 +176,9 @@
       }
       .tag.critical, .tag.major { background: #fde8e8; color: var(--danger); }
       .tag.warning, .tag.minor { background: #fff4dd; color: var(--warn); }
-      .tag.ok, .tag.report, .tag.change, .tag.acknowledged { background: #e9f8ef; color: var(--ok); }
-      .tag.close, .tag.cleared { background: #eff2f6; color: var(--muted); }
-      .tag.error { background: #fde8e8; color: var(--danger); }
+      .tag.ok, .tag.report, .tag.change, .tag.acknowledged, .tag.normal { background: #e9f8ef; color: var(--ok); }
+      .tag.close, .tag.cleared, .tag.unknown { background: #eff2f6; color: var(--muted); }
+      .tag.error, .tag.poll_error { background: #fde8e8; color: var(--danger); }
       .tag.partial { background: #fff4dd; color: var(--warn); }
       .flash-stack {
         display: grid;
@@ -255,20 +241,14 @@
         text-align: right;
       }
       @media (max-width: 920px) {
-        .layout {
-          grid-template-columns: 1fr;
-        }
-        .sidebar {
-          padding-bottom: 8px;
-        }
+        .layout { grid-template-columns: 1fr; }
+        .sidebar { padding-bottom: 8px; }
         .nav {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
           gap: 8px;
         }
-        .content {
-          padding: 16px;
-        }
+        .content { padding: 16px; }
       }
     </style>
   </head>
@@ -281,19 +261,18 @@
             <p>{{ current_user.username }} / {{ current_user.role|role_label }}</p>
           </div>
           <nav class="nav">
-            <a class="{{ 'active' if page_name == '总览' else '' }}" href="{{ url_for('web.dashboard') }}">总览</a>
+            <a class="{{ 'active' if page_name == '设备运行总览' else '' }}" href="{{ url_for('web.dashboard') }}">首页总览</a>
             {% if current_user.role == 'admin' %}
               <a class="{{ 'active' if page_name == '用户管理' else '' }}" href="{{ url_for('web.users') }}">用户管理</a>
             {% endif %}
             <a class="{{ 'active' if page_name == '设备管理' else '' }}" href="{{ url_for('web.devices') }}">设备管理</a>
-            <a class="{{ 'active' if page_name == 'MIB 节点' else '' }}" href="{{ url_for('web.mib_nodes') }}">MIB 节点</a>
-            <a class="{{ 'active' if page_name == 'Trap 实时页面' else '' }}" href="{{ url_for('web.traps') }}">Trap 页面</a>
+            <a class="{{ 'active' if page_name == '设备模板' else '' }}" href="{{ url_for('web.mib_nodes') }}">设备模板</a>
+            <a class="{{ 'active' if page_name == 'Trap 实时页面' else '' }}" href="{{ url_for('web.traps') }}">Trap 实时</a>
             <a class="{{ 'active' if page_name == '告警中心' else '' }}" href="{{ url_for('web.alarms') }}">告警中心</a>
             <a class="{{ 'active' if page_name == '操作日志' else '' }}" href="{{ url_for('web.logs') }}">操作日志</a>
           </nav>
           <div class="meta">
-            <div>实时通道：{{ channel_prefix }}:trap_events</div>
-            <div style="margin-top:8px;">版权所有 © 江苏有线南京分公司</div>
+            <div>版权所有 © 江苏有线南京分公司</div>
           </div>
         </aside>
         <section class="content">

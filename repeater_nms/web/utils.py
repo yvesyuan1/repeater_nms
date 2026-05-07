@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import random
-import string
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -48,6 +47,24 @@ STATUS_LABELS = {
     "ok": "成功",
     "partial": "部分成功",
     "error": "失败",
+}
+
+HEALTH_LABELS = {
+    "normal": "正常",
+    "warning": "告警",
+    "major": "主要告警",
+    "critical": "严重告警",
+    "error": "采集失败",
+    "unknown": "未知",
+}
+
+OVERVIEW_STATUS_LABELS = {
+    "normal": "正常",
+    "warning": "告警",
+    "major": "主要告警",
+    "critical": "严重告警",
+    "poll_error": "采集失败",
+    "unknown": "未知",
 }
 
 POLL_STATUS_DESCRIPTIONS = {
@@ -136,8 +153,51 @@ def trap_type_label(value: str | None) -> str:
     return label_for(TRAP_TYPE_LABELS, value, default="-")
 
 
+def health_label(value: str | None) -> str:
+    return label_for(HEALTH_LABELS, value, default="未知")
+
+
+def overview_status_label(value: str | None) -> str:
+    return label_for(OVERVIEW_STATUS_LABELS, value, default="未知")
+
+
 def device_name_label(device_name: str | None) -> str:
     return device_name or "未知设备"
+
+
+def profile_title(vendor: str | None, model: str | None) -> str:
+    if vendor and model:
+        return f"{vendor} {model}"
+    return vendor or model or "-"
+
+
+def highest_severity(values: list[str]) -> str | None:
+    order = {"critical": 5, "major": 4, "warning": 3, "minor": 2, "indeterminate": 1, "cleared": 0}
+    ranked = sorted((value for value in values if value), key=lambda item: order.get(item, -1), reverse=True)
+    return ranked[0] if ranked else None
+
+
+def compute_device_overview_status(
+    *,
+    last_poll_status: str | None,
+    highest_alarm_severity: str | None,
+    health_statuses: list[str],
+) -> str:
+    if highest_alarm_severity in {"critical", "major"}:
+        return highest_alarm_severity
+    if last_poll_status == "error":
+        return "poll_error"
+    if highest_alarm_severity in {"warning", "minor"}:
+        return "warning"
+    if any(item == "critical" for item in health_statuses):
+        return "critical"
+    if any(item == "major" for item in health_statuses):
+        return "major"
+    if any(item == "warning" for item in health_statuses):
+        return "warning"
+    if last_poll_status == "ok" and any(item == "normal" for item in health_statuses):
+        return "normal"
+    return "unknown"
 
 
 def build_trap_summary(
@@ -153,9 +213,7 @@ def build_trap_summary(
 ) -> str:
     summary_parts: list[str] = []
     if alarm_id or alarm_obj:
-        summary_parts.append(
-            f"{trap_name_label(trap_name)}：设备 {device_name_label(device_name)}"
-        )
+        summary_parts.append(f"{trap_name_label(trap_name)}：设备 {device_name_label(device_name)}")
         if alarm_obj:
             summary_parts.append(f"对象 {alarm_obj}")
         if alarm_id:

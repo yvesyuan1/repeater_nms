@@ -5,7 +5,18 @@ from decimal import Decimal
 from typing import Any
 
 from flask_login import UserMixin
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from repeater_nms.db.base import Base, TimestampMixin, utc_now
@@ -25,6 +36,19 @@ class User(UserMixin, TimestampMixin, Base):
         return str(self.id)
 
 
+class DeviceProfile(TimestampMixin, Base):
+    __tablename__ = "repeater_device_profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_code: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    vendor: Mapped[str] = mapped_column(String(128), nullable=False)
+    model: Mapped[str] = mapped_column(String(128), nullable=False)
+    category: Mapped[str] = mapped_column(String(64), nullable=False)
+    parser_key: Mapped[str] = mapped_column(String(64), default="bohui_rx10", nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    is_builtin: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
 class Device(TimestampMixin, Base):
     __tablename__ = "repeater_devices"
     __table_args__ = (
@@ -35,6 +59,7 @@ class Device(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     ip: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    device_profile_code: Mapped[str] = mapped_column(String(64), index=True, default="bohui_rx10", nullable=False)
     snmp_port: Mapped[int] = mapped_column(Integer, default=161, nullable=False)
     trap_port: Mapped[int] = mapped_column(Integer, default=1162, nullable=False)
     snmp_version: Mapped[str] = mapped_column(String(16), default="v2c", nullable=False)
@@ -56,13 +81,18 @@ class MibNode(TimestampMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_code: Mapped[str] = mapped_column(String(64), index=True, default="bohui_rx10", nullable=False)
     oid: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
+    name_zh: Mapped[str | None] = mapped_column(String(128))
     category: Mapped[str] = mapped_column(String(32), nullable=False)
+    category_zh: Mapped[str | None] = mapped_column(String(64))
     access: Mapped[str] = mapped_column(String(32), nullable=False)
     data_type: Mapped[str] = mapped_column(String(64), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     enum_name: Mapped[str | None] = mapped_column(String(64))
+    unit: Mapped[str | None] = mapped_column(String(32))
+    overview_order: Mapped[int | None] = mapped_column(Integer)
     is_pollable: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_trap_field: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_set_reserved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -74,10 +104,38 @@ class MibEnum(TimestampMixin, Base):
     __table_args__ = (UniqueConstraint("enum_name", "code", name="uq_repeater_mib_enums_name_code"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_code: Mapped[str] = mapped_column(String(64), index=True, default="bohui_rx10", nullable=False)
     enum_name: Mapped[str] = mapped_column(String(64), nullable=False)
     code: Mapped[int] = mapped_column(Integer, nullable=False)
     label: Mapped[str] = mapped_column(String(64), nullable=False)
     description: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
+class PollingStrategy(TimestampMixin, Base):
+    __tablename__ = "repeater_polling_strategies"
+    __table_args__ = (
+        UniqueConstraint("profile_code", "node_name", name="uq_repeater_polling_strategies_profile_node"),
+        Index("ix_repeater_polling_strategies_profile_enabled", "profile_code", "is_enabled"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_code: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    mib_node_id: Mapped[int | None] = mapped_column(ForeignKey("repeater_mib_nodes.id"))
+    oid: Mapped[str] = mapped_column(String(255), nullable=False)
+    node_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    node_name_zh: Mapped[str | None] = mapped_column(String(128))
+    category: Mapped[str | None] = mapped_column(String(64))
+    poll_interval_seconds: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    save_history: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    show_in_overview: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    show_in_device_card: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    judge_type: Mapped[str | None] = mapped_column(String(32))
+    expected_value_text: Mapped[str | None] = mapped_column(String(128))
+    expected_values_json: Mapped[dict[str, Any] | list[Any] | None] = mapped_column(JSON)
+    health_on_mismatch: Mapped[str | None] = mapped_column(String(32))
+    notes: Mapped[str | None] = mapped_column(Text)
+    display_order: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
 
 
 class SnmpMetricSample(Base):
@@ -89,14 +147,23 @@ class SnmpMetricSample(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     device_id: Mapped[int | None] = mapped_column(ForeignKey("repeater_devices.id"), index=True)
+    profile_code: Mapped[str | None] = mapped_column(String(64), index=True)
     mib_node_id: Mapped[int | None] = mapped_column(ForeignKey("repeater_mib_nodes.id"))
     oid: Mapped[str] = mapped_column(String(255), nullable=False)
     oid_name: Mapped[str | None] = mapped_column(String(128))
+    oid_name_zh: Mapped[str | None] = mapped_column(String(128))
+    category: Mapped[str | None] = mapped_column(String(64))
     metric_key: Mapped[str | None] = mapped_column(String(128))
     value_raw: Mapped[str | None] = mapped_column(Text)
     value_text: Mapped[str | None] = mapped_column(Text)
+    display_value: Mapped[str | None] = mapped_column(Text)
+    enum_text: Mapped[str | None] = mapped_column(String(255))
+    value_unit: Mapped[str | None] = mapped_column(String(32))
     value_num: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
     value_json: Mapped[dict[str, Any] | list[Any] | None] = mapped_column(JSON)
+    health_status: Mapped[str | None] = mapped_column(String(32))
+    health_text: Mapped[str | None] = mapped_column(String(64))
+    health_reason: Mapped[str | None] = mapped_column(Text)
     poll_status: Mapped[str] = mapped_column(String(32), default="ok", nullable=False)
     error_message: Mapped[str | None] = mapped_column(String(255))
     collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -112,15 +179,27 @@ class DeviceLatestValue(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     device_id: Mapped[int] = mapped_column(ForeignKey("repeater_devices.id"), index=True, nullable=False)
+    profile_code: Mapped[str | None] = mapped_column(String(64), index=True)
     mib_node_id: Mapped[int | None] = mapped_column(ForeignKey("repeater_mib_nodes.id"))
     oid: Mapped[str] = mapped_column(String(255), nullable=False)
     oid_name: Mapped[str | None] = mapped_column(String(128))
+    oid_name_zh: Mapped[str | None] = mapped_column(String(128))
+    category: Mapped[str | None] = mapped_column(String(64))
     value_raw: Mapped[str | None] = mapped_column(Text)
     value_text: Mapped[str | None] = mapped_column(Text)
+    display_value: Mapped[str | None] = mapped_column(Text)
+    enum_text: Mapped[str | None] = mapped_column(String(255))
+    value_unit: Mapped[str | None] = mapped_column(String(32))
     value_num: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
     value_json: Mapped[dict[str, Any] | list[Any] | None] = mapped_column(JSON)
+    health_status: Mapped[str | None] = mapped_column(String(32))
+    health_text: Mapped[str | None] = mapped_column(String(64))
+    health_reason: Mapped[str | None] = mapped_column(Text)
     poll_status: Mapped[str] = mapped_column(String(32), default="ok", nullable=False)
     error_message: Mapped[str | None] = mapped_column(String(255))
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_failure_message: Mapped[str | None] = mapped_column(Text)
     collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
@@ -141,6 +220,7 @@ class TrapEvent(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     device_id: Mapped[int | None] = mapped_column(ForeignKey("repeater_devices.id"), index=True)
+    profile_code: Mapped[str | None] = mapped_column(String(64), index=True)
     pdu_id: Mapped[str | None] = mapped_column(String(64), index=True)
     packet_id: Mapped[str | None] = mapped_column(String(64))
     source_ip: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -177,7 +257,8 @@ class AlarmRule(TimestampMixin, Base):
     __tablename__ = "repeater_alarm_rules"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    alarm_id: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    profile_code: Mapped[str] = mapped_column(String(64), index=True, default="bohui_rx10", nullable=False)
+    alarm_id: Mapped[str] = mapped_column(String(128), index=True)
     default_severity: Mapped[str] = mapped_column(String(32), nullable=False)
     should_create_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     should_popup: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

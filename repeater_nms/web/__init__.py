@@ -7,16 +7,19 @@ from repeater_nms.web.cli import register_cli
 from repeater_nms.web.db import close_db_session
 from repeater_nms.web.extensions import login_manager
 from repeater_nms.web.utils import (
+    format_dt,
+    health_label,
     mask_secret,
+    overview_status_label,
     poll_status_description,
     poll_status_label,
+    profile_title,
     role_description,
     role_label,
     severity_label,
     status_label,
     trap_name_label,
     trap_type_label,
-    format_dt,
 )
 
 
@@ -47,4 +50,7 @@ def create_app() -> Flask:
     app.jinja_env.filters["poll_status_desc"] = poll_status_description
     app.jinja_env.filters["trap_name_label"] = trap_name_label
     app.jinja_env.filters["trap_type_label"] = trap_type_label
+    app.jinja_env.filters["health_label"] = health_label
+    app.jinja_env.filters["overview_status_label"] = overview_status_label
+    app.jinja_env.filters["profile_title"] = profile_title
     return app
