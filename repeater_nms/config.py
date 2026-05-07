@@ -11,6 +11,7 @@ load_environment()
 class Config:
     APP_NAME = "repeater-nms"
     PAGE_TITLE = "中继器网管"
+    TESTING = os.getenv("TESTING", "0") == "1"
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
     DATABASE_URL = os.getenv(
         "DATABASE_URL",
@@ -22,3 +23,6 @@ class Config:
     APP_PORT = int(os.getenv("APP_PORT", "5000"))
     TIMEZONE = os.getenv("TIMEZONE", "Asia/Shanghai")
     ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+    SSE_HEARTBEAT_SECONDS = int(os.getenv("SSE_HEARTBEAT_SECONDS", "15"))
+    SESSION_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_HTTPONLY = True

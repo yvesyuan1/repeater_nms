@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="card">
+    <h3 style="margin-top:0;">活动告警</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>设备</th>
+          <th>对象</th>
+          <th>告警</th>
+          <th>级别</th>
+          <th>状态</th>
+          <th>次数</th>
+          <th>最后发生</th>
+          <th>确认</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in active_alarms %}
+          <tr>
+            <td>{{ item.device_id or '未知设备' }}</td>
+            <td>{{ item.alarm_obj }}</td>
+            <td>{{ item.alarm_id }}</td>
+            <td><span class="tag {{ item.severity }}">{{ item.severity }}</span></td>
+            <td><span class="tag {{ item.status }}">{{ item.status }}</span></td>
+            <td>{{ item.occurrence_count }}</td>
+            <td>{{ item.last_seen_at|dt }}</td>
+            <td>
+              {% if item.is_open and current_user.role in ['admin', 'operator'] %}
+                <form method="post" action="{{ url_for('web.ack_alarm', alarm_id=item.id) }}" class="grid" style="gap:8px;">
+                  <input type="text" name="note" placeholder="备注，可留空">
+                  <button type="submit">{{ '已确认' if item.is_acknowledged else '确认告警' }}</button>
+                </form>
+              {% else %}
+                {{ '已确认' if item.is_acknowledged else '-' }}
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="8">暂无告警。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card" style="margin-top:18px;">
+    <h3 style="margin-top:0;">历史告警事件</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>时间</th>
+          <th>设备</th>
+          <th>对象</th>
+          <th>告警</th>
+          <th>级别</th>
+          <th>状态</th>
+          <th>消息</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in alarm_history %}
+          <tr>
+            <td>{{ item.occurred_at|dt }}</td>
+            <td>{{ item.device_id or '未知设备' }}</td>
+            <td>{{ item.alarm_obj or '-' }}</td>
+            <td>{{ item.alarm_id or '-' }}</td>
+            <td><span class="tag {{ item.severity or '' }}">{{ item.severity or '-' }}</span></td>
+            <td><span class="tag {{ item.status or '' }}">{{ item.status or '-' }}</span></td>
+            <td>{{ item.message or '-' }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7">暂无历史事件。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

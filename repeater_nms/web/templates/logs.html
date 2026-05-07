@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <table>
+    <thead>
+      <tr>
+        <th>时间</th>
+        <th>用户</th>
+        <th>动作</th>
+        <th>目标类型</th>
+        <th>目标 ID</th>
+        <th>来源 IP</th>
+        <th>详情</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in logs %}
+        <tr>
+          <td>{{ item.created_at|dt }}</td>
+          <td>{{ item.username_snapshot or '-' }}</td>
+          <td>{{ item.action }}</td>
+          <td>{{ item.target_type or '-' }}</td>
+          <td>{{ item.target_id or '-' }}</td>
+          <td>{{ item.source_ip or '-' }}</td>
+          <td>{{ item.details_json or '-' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7">暂无操作日志。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

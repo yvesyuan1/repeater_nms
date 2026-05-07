@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="toolbar">
+    <a class="button secondary" href="{{ url_for('web.edit_device', device_id=device.id) }}">编辑设备</a>
+    <a class="button secondary" href="{{ url_for('web.devices') }}">返回设备列表</a>
+  </div>
+  <div class="grid cards">
+    <div class="card"><div class="label">设备名称</div><div class="value" style="font-size:20px;">{{ device.name }}</div></div>
+    <div class="card"><div class="label">IP</div><div class="value" style="font-size:20px;">{{ device.ip }}</div></div>
+    <div class="card"><div class="label">最近在线</div><div class="value" style="font-size:18px;">{{ device.last_online_at|dt }}</div></div>
+    <div class="card"><div class="label">最近轮询</div><div class="value" style="font-size:18px;">{{ device.last_polled_at|dt }}</div></div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:18px;">
+    <section class="card">
+      <h3 style="margin-top:0;">最新 SNMP 状态</h3>
+      <table>
+        <thead><tr><th>OID</th><th>名称</th><th>值</th><th>状态</th></tr></thead>
+        <tbody>
+          {% for item in latest_values %}
+            <tr>
+              <td>{{ item.oid }}</td>
+              <td>{{ item.oid_name or '-' }}</td>
+              <td>{{ item.value_text or item.value_raw or '-' }}</td>
+              <td><span class="tag {{ item.poll_status or '' }}">{{ item.poll_status or '-' }}</span></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4">暂无采集结果。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    <section class="card">
+      <h3 style="margin-top:0;">当前活动告警</h3>
+      <table>
+        <thead><tr><th>对象</th><th>告警</th><th>级别</th><th>最后发生</th></tr></thead>
+        <tbody>
+          {% for item in active_alarms %}
+            <tr>
+              <td>{{ item.alarm_obj }}</td>
+              <td>{{ item.alarm_id }}</td>
+              <td><span class="tag {{ item.severity }}">{{ item.severity }}</span></td>
+              <td>{{ item.last_seen_at|dt }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4">暂无活动告警。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:18px;">
+    <h3 style="margin-top:0;">最近 Trap</h3>
+    <table>
+      <thead><tr><th>时间</th><th>PDU</th><th>对象</th><th>告警</th><th>级别</th><th>状态</th></tr></thead>
+      <tbody>
+        {% for item in recent_traps %}
+          <tr>
+            <td>{{ item.received_at|dt }}</td>
+            <td>{{ item.pdu_id or '-' }}</td>
+            <td>{{ item.alarm_obj or '-' }}</td>
+            <td>{{ item.alarm_id or item.trap_name }}</td>
+            <td><span class="tag {{ item.severity or '' }}">{{ item.severity or '-' }}</span></td>
+            <td><span class="tag {{ item.status or '' }}">{{ item.status or '-' }}</span></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6">暂无 Trap。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="grid cards">
+    <div class="card">
+      <div class="label">设备总数</div>
+      <div class="value">{{ device_total }}</div>
+    </div>
+    <div class="card">
+      <div class="label">启用设备数</div>
+      <div class="value">{{ enabled_devices }}</div>
+    </div>
+    <div class="card">
+      <div class="label">活动告警数</div>
+      <div class="value">{{ active_alarm_total }}</div>
+    </div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1.2fr 1fr;margin-top:18px;">
+    <section class="card">
+      <h3 style="margin-top:0;">最近 Trap</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>时间</th>
+            <th>来源 IP</th>
+            <th>设备</th>
+            <th>告警</th>
+            <th>级别</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in recent_traps %}
+            <tr>
+              <td>{{ item.received_at|dt }}</td>
+              <td>{{ item.source_ip }}</td>
+              <td>{{ item.device_id or '未知设备' }}</td>
+              <td>{{ item.alarm_id or item.trap_name }}</td>
+              <td><span class="tag {{ item.severity or '' }}">{{ item.severity or '-' }}</span></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5">暂无 Trap 数据。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    <section class="card">
+      <h3 style="margin-top:0;">最近采集状态</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>设备</th>
+            <th>状态</th>
+            <th>最后轮询</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in recent_devices %}
+            <tr>
+              <td><a href="{{ url_for('web.device_detail', device_id=item.id) }}">{{ item.name }}</a></td>
+              <td><span class="tag {{ item.last_poll_status or '' }}">{{ item.last_poll_status or '-' }}</span></td>
+              <td>{{ item.last_polled_at|dt }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="3">暂无设备。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+{% endblock %}

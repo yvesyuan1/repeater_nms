@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="grid" style="grid-template-columns: 360px 1fr;">
+    <section class="card">
+      <h3 style="margin-top:0;">新增用户</h3>
+      <form method="post" class="grid">
+        <label><div class="muted">用户名</div><input type="text" name="username" required></label>
+        <label><div class="muted">密码</div><input type="password" name="password" required></label>
+        <label>
+          <div class="muted">角色</div>
+          <select name="role">
+            <option value="admin">admin</option>
+            <option value="operator">operator</option>
+            <option value="viewer">viewer</option>
+          </select>
+        </label>
+        <label><input type="checkbox" name="is_active" checked> 启用</label>
+        <button type="submit">创建用户</button>
+      </form>
+    </section>
+    <section class="card">
+      <h3 style="margin-top:0;">用户列表</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>用户名</th>
+            <th>角色</th>
+            <th>状态</th>
+            <th>最近登录</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in users %}
+            <tr>
+              <td>{{ item.id }}</td>
+              <td>{{ item.username }}</td>
+              <td>{{ item.role }}</td>
+              <td><span class="tag {{ 'ok' if item.is_active else '' }}">{{ '启用' if item.is_active else '停用' }}</span></td>
+              <td>{{ item.last_login_at|dt }}</td>
+              <td>
+                <form class="inline" method="post" action="{{ url_for('web.toggle_user', user_id=item.id) }}">
+                  <button class="secondary" type="submit">{{ '停用' if item.is_active else '启用' }}</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+{% endblock %}

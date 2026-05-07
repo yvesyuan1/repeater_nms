@@ -2,7 +2,7 @@
 
 ## 当前阶段
 
-- 当前阶段：阶段3 collector
+- 当前阶段：阶段4 Flask API 和页面
 - 状态：已完成
 
 ## 已完成内容
@@ -55,19 +55,38 @@
   - `python -m repeater_nms.collector parse-fixture --fixture tests/fixtures/rx10_almchg_tcpdump_sample.txt`
   - `PysnmpTrapListener` 本地绑定/启动/停止 smoke test
   - `python -m repeater_nms.collector poll-once` 零设备场景 smoke test
+- 实现阶段4 Web 能力：
+  - 登录、退出
+  - 用户管理
+  - 设备管理、设备详情
+  - MIB 节点展示
+  - Trap 查询页面
+  - SSE 实时流接口 `GET /api/events/stream`
+  - 告警中心、活动告警确认
+  - 弹窗通知 API 与页面右下角提示
+  - 操作日志页面
+- 新增 Web 侧测试：
+  - `tests/test_web_app.py`
+- 阶段4自测通过：
+  - `pytest tests/test_web_app.py tests/test_trap_parser.py tests/test_db_init.py`，共 `8 passed`
+  - 本地 Flask 启动 smoke test：
+    - `GET /healthz` 返回 `200`
+    - `GET /login` 返回 `200`
+    - 登录页文本正常显示
 
 ## 待办事项
 
-- 进入阶段4，实现登录、设备管理、Trap 查询、SSE、告警中心与页面。
-- 将 collector 发布的 `repeater_nms:trap_events` 接入 Flask SSE。
-- 增加基于服务器的 Trap 联机验证和页面联调。
+- 进入阶段5，生成 systemd、Nginx 和服务器部署步骤。
+- 在服务器上创建 `.env`、venv、初始化数据库并启动服务。
+- 在服务器侧验证 UDP 1162 Trap 监听与 Nginx SSE 代理。
 
 ## 已知问题
 
 - 阶段2和阶段3的数据库自测使用本地 SQLite 验证建表和幂等逻辑；服务器 MySQL 实际执行留到阶段5部署时完成。
 - 远端 `80` 端口当前未监听，部署阶段需确认 Nginx 状态。
-- 当前 Web 仍是最小骨架，尚未接入登录、设备管理和告警页面。
 - 本地 agent 环境下，对 `172.31.3.239` 的实时 SNMP GET 烟测与命令行 `snmpget` 都出现过超时；该问题未影响离线 parser/collector 链路，需要在后续联调时以你的本机手工命令结果为准再次确认。
+- 当前 Web 已完成基础管理页面，但尚未做更细粒度权限矩阵和复杂前端交互。
+- 若 Redis 不可用，SSE 接口会返回错误事件，页面会进入自动重连状态；服务器联调时需结合真实 Redis 验证。
 
 ## 最近一次部署状态
 
@@ -81,3 +100,4 @@
 - 表结构已预留 Trap PDU 拆分、多告警归一化、活动告警去重和弹窗确认所需字段。
 - Trap 解析失败时仍保留原始 PDU 记录，写入 `parse_status=failed` 和 `parse_error`。
 - Trap 接收白名单优先来源于设备表中的 read community，并可用环境变量补充。
+- Web 侧采用请求级 SQLAlchemy session + Flask-Login，SSE 直接订阅 Redis pub/sub，前端用原生 `EventSource` 自动重连。

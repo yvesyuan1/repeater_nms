@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="filters">
+    <form method="get" class="filters" style="width:100%;">
+      <label style="min-width:180px;">
+        <div class="muted">按级别过滤</div>
+        <select name="severity">
+          <option value="">全部</option>
+          {% for name in ['critical', 'major', 'minor', 'warning', 'indeterminate', 'cleared'] %}
+            <option value="{{ name }}" {% if filter_severity == name %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label style="min-width:220px;">
+        <div class="muted">按设备过滤</div>
+        <select name="device_id">
+          <option value="">全部</option>
+          {% for item in devices %}
+            <option value="{{ item.id }}" {% if filter_device_id == item.id|string %}selected{% endif %}>{{ item.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div style="align-self:end;">
+        <button type="submit">筛选</button>
+      </div>
+      <div class="muted" id="sse-status" style="margin-left:auto;align-self:end;">SSE: connecting</div>
+    </form>
+  </div>
+  <table id="trap-table">
+    <thead>
+      <tr>
+        <th>时间</th>
+        <th>来源 IP</th>
+        <th>设备</th>
+        <th>Trap 类型</th>
+        <th>级别</th>
+        <th>对象</th>
+        <th>告警 ID</th>
+        <th>状态</th>
+        <th>设备时间</th>
+        <th>PDU ID</th>
+        <th>摘要</th>
+      </tr>
+    </thead>
+    <tbody id="trap-body">
+      {% for item in traps %}
+        <tr>
+          <td>{{ item.received_at|dt }}</td>
+          <td>{{ item.source_ip }}</td>
+          <td>{{ item.device_id or '未知设备' }}</td>
+          <td>{{ item.trap_name or item.trap_type or '-' }}</td>
+          <td><span class="tag {{ item.severity or '' }}">{{ item.severity or '-' }}</span></td>
+          <td>{{ item.alarm_obj or '-' }}</td>
+          <td>{{ item.alarm_id or '-' }}</td>
+          <td><span class="tag {{ item.status or '' }}">{{ item.status or '-' }}</span></td>
+          <td>{{ item.device_alarm_time_raw or '-' }}</td>
+          <td>{{ item.pdu_id or '-' }}</td>
+          <td>{{ item.raw_summary or '-' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="11">暂无 Trap 数据。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <script>
+    const trapBody = document.getElementById("trap-body");
+    const sseStatus = document.getElementById("sse-status");
+    const filterSeverity = "{{ filter_severity }}";
+    const filterDeviceId = "{{ filter_device_id }}";
+
+    function passesFilter(payload) {
+      if (filterSeverity && payload.severity !== filterSeverity) return false;
+      if (filterDeviceId && String(payload.device_id || "") !== filterDeviceId) return false;
+      return true;
+    }
+
+    function prependRow(payload) {
+      if (!passesFilter(payload)) return;
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${payload.received_at || "-"}</td>
+        <td>${payload.source_ip || "-"}</td>
+        <td>${payload.device_name || "未知设备"}</td>
+        <td>${payload.trap_name || payload.trap_type || "-"}</td>
+        <td><span class="tag ${payload.severity || ""}">${payload.severity || "-"}</span></td>
+        <td>${payload.alarm_obj || "-"}</td>
+        <td>${payload.alarm_id || "-"}</td>
+        <td><span class="tag ${payload.status || ""}">${payload.status || "-"}</span></td>
+        <td>${payload.device_alarm_time_raw || "-"}</td>
+        <td>${payload.pdu_id || "-"}</td>
+        <td>${payload.raw_summary || "-"}</td>
+      `;
+      const emptyRow = trapBody.querySelector("tr td[colspan='11']");
+      if (emptyRow) {
+        emptyRow.parentElement.remove();
+      }
+      trapBody.prepend(row);
+      while (trapBody.children.length > 100) {
+        trapBody.removeChild(trapBody.lastElementChild);
+      }
+    }
+
+    const source = new EventSource("{{ url_for('web.event_stream') }}");
+    sseStatus.textContent = "SSE: connecting";
+    source.onopen = () => { sseStatus.textContent = "SSE: connected"; };
+    source.addEventListener("trap_event", (event) => {
+      sseStatus.textContent = "SSE: connected";
+      prependRow(JSON.parse(event.data));
+    });
+    source.addEventListener("heartbeat", () => {
+      sseStatus.textContent = "SSE: heartbeat";
+    });
+    source.onerror = () => {
+      sseStatus.textContent = "SSE: reconnecting";
+    };
+  </script>
+{% endblock %}

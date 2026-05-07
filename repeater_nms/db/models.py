@@ -4,13 +4,14 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from flask_login import UserMixin
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from repeater_nms.db.base import Base, TimestampMixin, utc_now
 
 
-class User(TimestampMixin, Base):
+class User(UserMixin, TimestampMixin, Base):
     __tablename__ = "repeater_users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -19,6 +20,9 @@ class User(TimestampMixin, Base):
     role: Mapped[str] = mapped_column(String(32), default="admin", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    def get_id(self) -> str:
+        return str(self.id)
 
 
 class Device(TimestampMixin, Base):

@@ -3,62 +3,342 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ page_title }}</title>
+    <title>{{ page_title }}{% if page_name %} - {{ page_name }}{% endif %}</title>
     <style>
       :root {
-        color-scheme: light;
-        --bg: #f5f7fb;
+        --bg: #f2f5f8;
         --panel: #ffffff;
-        --border: #d7dde8;
-        --text: #1f2937;
-        --muted: #526071;
-        --accent: #0f4c81;
+        --line: #d7dee8;
+        --text: #1c2733;
+        --muted: #617286;
+        --brand: #0f5c7a;
+        --brand-soft: #e6f3f8;
+        --ok: #217346;
+        --warn: #b26a00;
+        --danger: #b42318;
+        --shadow: 0 10px 30px rgba(15, 35, 55, 0.08);
       }
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
         color: var(--text);
-        background: linear-gradient(180deg, #eef3f9 0%, var(--bg) 100%);
+        background:
+          radial-gradient(circle at top right, rgba(15, 92, 122, 0.08), transparent 26%),
+          linear-gradient(180deg, #f7f9fc 0%, var(--bg) 100%);
+        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
       }
-      .wrap {
-        max-width: 960px;
-        margin: 0 auto;
-        padding: 32px 20px 48px;
+      a { color: var(--brand); text-decoration: none; }
+      .layout {
+        display: grid;
+        grid-template-columns: 240px 1fr;
+        min-height: 100vh;
       }
-      .panel {
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: 12px;
+      .sidebar {
+        padding: 24px 18px;
+        background: #16354a;
+        color: #eef5fb;
+      }
+      .brand {
+        margin-bottom: 20px;
+        padding-bottom: 18px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+      }
+      .brand h1 {
+        margin: 0 0 6px;
+        font-size: 22px;
+      }
+      .brand p {
+        margin: 0;
+        font-size: 13px;
+        color: rgba(238, 245, 251, 0.72);
+      }
+      .nav a {
+        display: block;
+        margin-bottom: 8px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        color: rgba(238, 245, 251, 0.9);
+      }
+      .nav a.active,
+      .nav a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .sidebar .meta {
+        margin-top: 24px;
+        font-size: 12px;
+        color: rgba(238, 245, 251, 0.7);
+      }
+      .content {
         padding: 24px;
-        box-shadow: 0 8px 24px rgba(18, 38, 63, 0.05);
       }
-      h1, h2, p { margin-top: 0; }
-      .meta {
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+      }
+      .topbar h2 {
+        margin: 0;
+        font-size: 24px;
+      }
+      .topbar .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
         color: var(--muted);
         font-size: 14px;
       }
-      .tag {
-        display: inline-block;
-        margin-right: 8px;
-        margin-bottom: 8px;
-        padding: 6px 10px;
-        border-radius: 999px;
-        background: #e8f1fb;
-        color: var(--accent);
+      .main-panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        padding: 20px;
+      }
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+      .grid.cards {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      }
+      .card {
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
+      }
+      .card .label {
+        color: var(--muted);
         font-size: 13px;
       }
-      code {
-        background: #f2f4f8;
-        padding: 2px 6px;
-        border-radius: 6px;
+      .card .value {
+        margin-top: 8px;
+        font-size: 30px;
+        font-weight: 700;
+      }
+      .toolbar, .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      form.inline { display: inline; }
+      input, select, textarea, button {
+        font: inherit;
+      }
+      input, select, textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+      }
+      textarea { min-height: 90px; resize: vertical; }
+      button, .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 10px 14px;
+        border: 0;
+        border-radius: 10px;
+        cursor: pointer;
+        background: var(--brand);
+        color: #fff;
+      }
+      button.secondary, .button.secondary {
+        background: #eaf0f5;
+        color: var(--text);
+      }
+      button.danger {
+        background: var(--danger);
+      }
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 14px;
+      }
+      .form-grid .full {
+        grid-column: 1 / -1;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th, td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+        text-align: left;
+        font-size: 14px;
+      }
+      th {
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .tag {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #eef3f8;
+        color: var(--text);
+        font-size: 12px;
+      }
+      .tag.critical, .tag.major { background: #fde8e8; color: var(--danger); }
+      .tag.warning, .tag.minor { background: #fff4dd; color: var(--warn); }
+      .tag.ok, .tag.report, .tag.change { background: #e9f8ef; color: var(--ok); }
+      .tag.close, .tag.cleared { background: #eff2f6; color: var(--muted); }
+      .flash-stack {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .flash {
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: #fff;
+      }
+      .flash.error {
+        border-color: #f6c6c6;
+        background: #fff3f2;
+        color: var(--danger);
+      }
+      .flash.success {
+        border-color: #bfe4ca;
+        background: #eefaf2;
+        color: var(--ok);
+      }
+      .popup-tray {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        width: min(360px, calc(100vw - 36px));
+        display: grid;
+        gap: 10px;
+        z-index: 50;
+      }
+      .popup-item {
+        padding: 14px;
+        border-radius: 14px;
+        background: #fffaf8;
+        border: 1px solid #f5d3c7;
+        box-shadow: var(--shadow);
+      }
+      .popup-item h4 {
+        margin: 0 0 6px;
+        font-size: 15px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      @media (max-width: 920px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        .sidebar {
+          padding-bottom: 8px;
+        }
+        .nav {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+          gap: 8px;
+        }
+        .content {
+          padding: 16px;
+        }
       }
     </style>
   </head>
   <body>
-    <main class="wrap">
-      {% block content %}{% endblock %}
-    </main>
+    {% if current_user.is_authenticated %}
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="brand">
+            <h1>{{ page_title }}</h1>
+            <p>{{ current_user.username }} / {{ current_user.role }}</p>
+          </div>
+          <nav class="nav">
+            <a class="{{ 'active' if page_name == '总览' else '' }}" href="{{ url_for('web.dashboard') }}">总览</a>
+            {% if current_user.role == 'admin' %}
+              <a class="{{ 'active' if page_name == '用户管理' else '' }}" href="{{ url_for('web.users') }}">用户管理</a>
+            {% endif %}
+            <a class="{{ 'active' if page_name == '设备管理' else '' }}" href="{{ url_for('web.devices') }}">设备管理</a>
+            <a class="{{ 'active' if page_name == 'MIB 节点' else '' }}" href="{{ url_for('web.mib_nodes') }}">MIB 节点</a>
+            <a class="{{ 'active' if page_name == 'Trap 实时页面' else '' }}" href="{{ url_for('web.traps') }}">Trap 页面</a>
+            <a class="{{ 'active' if page_name == '告警中心' else '' }}" href="{{ url_for('web.alarms') }}">告警中心</a>
+            <a class="{{ 'active' if page_name == '操作日志' else '' }}" href="{{ url_for('web.logs') }}">操作日志</a>
+          </nav>
+          <div class="meta">
+            Redis channel: {{ channel_prefix }}:trap_events
+          </div>
+        </aside>
+        <section class="content">
+          <div class="topbar">
+            <h2>{{ page_name }}</h2>
+            <div class="status">
+              <span>{{ current_user.username }}</span>
+              <form class="inline" method="post" action="{{ url_for('web.logout') }}">
+                <button class="secondary" type="submit">退出</button>
+              </form>
+            </div>
+          </div>
+          {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+              <div class="flash-stack">
+                {% for category, message in messages %}
+                  <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          {% endwith %}
+          <div class="main-panel">
+            {% block content %}{% endblock %}
+          </div>
+        </section>
+      </div>
+      <div class="popup-tray" id="popup-tray"></div>
+      <script>
+        async function fetchPopups() {
+          try {
+            const response = await fetch("{{ url_for('web.api_popup_notifications') }}", { credentials: "same-origin" });
+            if (!response.ok) return;
+            const items = await response.json();
+            const tray = document.getElementById("popup-tray");
+            tray.innerHTML = "";
+            items.slice(0, 4).forEach((item) => {
+              const node = document.createElement("div");
+              node.className = "popup-item";
+              node.innerHTML = `
+                <h4>${item.severity || "alarm"} / ${item.alarm_id || "-"}</h4>
+                <div class="muted">${item.alarm_obj || "-"} | ${item.created_at || "-"}</div>
+                <div style="margin-top:10px;"><button data-popup-id="${item.id}">确认弹窗</button></div>
+              `;
+              tray.appendChild(node);
+            });
+            tray.querySelectorAll("button[data-popup-id]").forEach((button) => {
+              button.onclick = async () => {
+                await fetch(`/api/popup-notifications/${button.dataset.popupId}/ack`, {
+                  method: "POST",
+                  credentials: "same-origin"
+                });
+                fetchPopups();
+              };
+            });
+          } catch (error) {
+            console.debug("popup fetch failed", error);
+          }
+        }
+        fetchPopups();
+        setInterval(fetchPopups, 10000);
+      </script>
+    {% else %}
+      <main style="min-height:100vh;display:grid;place-items:center;padding:24px;">
+        {% block auth_content %}{% endblock %}
+      </main>
+    {% endif %}
   </body>
 </html>
-
