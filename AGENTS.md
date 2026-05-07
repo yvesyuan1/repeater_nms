@@ -38,6 +38,8 @@
 - 启动 collector 骨架：`.venv\Scripts\python -m repeater_nms.collector`
 - 初始化数据库：`.venv\Scripts\python -m flask --app wsgi init-db`
 - 初始化数据库（独立入口）：`.venv\Scripts\python -m repeater_nms.db init-db`
+- 解析 Trap fixture：`.venv\Scripts\python -m repeater_nms.collector parse-fixture --fixture tests/fixtures/rx10_almchg_tcpdump_sample.txt`
+- 执行一次轮询：`.venv\Scripts\python -m repeater_nms.collector poll-once`
 - 运行测试：`.venv\Scripts\python -m pytest`
 - 查看远端服务：`ssh WYJ-2 'systemctl status repeater-nms-web repeater-nms-collector --no-pager'`
 

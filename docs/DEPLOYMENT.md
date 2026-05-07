@@ -27,6 +27,7 @@
 
 - Web 服务通过 Gunicorn 监听 `127.0.0.1:5000`。
 - collector 必须保持单实例，监听 `0.0.0.0:1162/udp`。
+- collector 进程会从设备表加载已启用设备的 read community 作为 Trap 接收白名单，也可通过 `SNMP_TRAP_COMMUNITIES` 追加。
 - 服务文件放在 `/etc/systemd/system/`，修改后执行 `systemctl daemon-reload`。
 
 ## Nginx
@@ -54,6 +55,7 @@
 - 默认地址：`redis://127.0.0.1:6379/0`
 - SSE 与 collector 实时事件 channel：`repeater_nms:trap_events`
 - 可扩展缓存键前缀：`repeater_nms:*`
+- collector 会缓存每台设备最近一次轮询状态，供后续 Web 页面直接读取。
 
 ## Trap 端口说明
 
