@@ -168,6 +168,11 @@ def _page_number(default: int = 1) -> int:
     return max(request.args.get("page", default, type=int) or default, 1)
 
 
+def _per_page_number(default: int = 30, allowed: tuple[int, ...] = (20, 30, 50, 100)) -> int:
+    value = request.args.get("per_page", default, type=int) or default
+    return value if value in allowed else default
+
+
 def _build_page_url(endpoint: str, page: int, **params: Any) -> str:
     payload: dict[str, Any] = {"page": page}
     for key, value in params.items():
@@ -198,6 +203,8 @@ def _build_pager(*, endpoint: str, page: int, per_page: int, total: int, **param
         "total": total,
         "total_pages": total_pages,
         "pages": pages,
+        "first_url": _build_page_url(endpoint, 1, **params) if current_page > 1 else None,
+        "last_url": _build_page_url(endpoint, total_pages, **params) if current_page < total_pages else None,
         "prev_url": _build_page_url(endpoint, current_page - 1, **params) if current_page > 1 else None,
         "next_url": _build_page_url(endpoint, current_page + 1, **params) if current_page < total_pages else None,
     }
@@ -1331,7 +1338,7 @@ def traps():
     device_ids = [int(item) for item in _clean_multi_values("device_id") if item.isdigit()]
     keyword = request.args.get("keyword", "").strip()
     page = _page_number()
-    per_page = 30
+    per_page = _per_page_number()
     stmt = select(TrapEvent)
     if severity_values:
         stmt = stmt.where(TrapEvent.severity.in_(severity_values))
@@ -1367,6 +1374,14 @@ def traps():
     ).scalars().all()
     devices = _device_map(session)
     profiles = _profile_map(session)
+    severity_option_values = sorted(
+        {item for item in session.execute(select(TrapEvent.severity).where(TrapEvent.severity.is_not(None)).distinct()).scalars().all() if item}
+        | set(severity_values)
+    )
+    trap_type_option_values = sorted(
+        {item for item in session.execute(select(TrapEvent.trap_type).where(TrapEvent.trap_type.is_not(None)).distinct()).scalars().all() if item}
+        | set(trap_type_values)
+    )
     trap_views = [
         _trap_payload(item, devices.get(item.device_id) if item.device_id else None, profiles.get(item.profile_code or DEFAULT_PROFILE_CODE))
         for item in trap_rows
@@ -1377,11 +1392,14 @@ def traps():
             page_name="Trap 实时页面",
             traps=trap_views,
             devices=list(devices.values()),
+            severity_options=severity_option_values,
+            trap_type_options=trap_type_option_values,
             filter_severities=severity_values,
             filter_trap_types=trap_type_values,
             filter_device_ids=device_ids,
             filter_keyword=keyword,
             pager=pager,
+            per_page_options=[20, 30, 50, 100],
         ),
     )
 
@@ -1429,7 +1447,7 @@ def alarms():
     start_at = request.args.get("start_at", "").strip()
     end_at = request.args.get("end_at", "").strip()
     page = _page_number()
-    per_page = 30
+    per_page = _per_page_number()
 
     events = session.execute(select(AlarmEvent).order_by(AlarmEvent.occurred_at.desc(), AlarmEvent.id.desc())).scalars().all()
     active_map = {item.id: item for item in session.execute(select(ActiveAlarm)).scalars().all()}
@@ -1474,6 +1492,15 @@ def alarms():
             "active_state_label": "活动中" if active_alarm and active_alarm.is_open else "已关闭",
             "ack_state_label": "已确认" if active_alarm and active_alarm.is_acknowledged else "未确认",
         }
+        row["event_state_label"] = "恢复事件" if item.status == "close" or item.severity == "cleared" else "告警事件"
+        row["can_ack"] = bool(
+            active_alarm
+            and active_alarm.is_open
+            and not active_alarm.is_acknowledged
+            and item.status in {"report", "change"}
+            and item.severity != "cleared"
+            and (active_alarm.last_trap_event_id == item.trap_event_id if item.trap_event_id else True)
+        )
         if device_id and str(item.device_id or "") != device_id:
             continue
         if severity and item.severity != severity:
@@ -1536,6 +1563,7 @@ def alarms():
             active_count=active_count,
             unacked_count=unacked_count,
             pager=pager,
+            per_page_options=[20, 30, 50, 100],
             filters={
                 "device_id": device_id,
                 "severity": severity,
@@ -1545,6 +1573,7 @@ def alarms():
                 "keyword": keyword,
                 "start_at": start_at,
                 "end_at": end_at,
+                "per_page": str(per_page),
             },
         ),
     )

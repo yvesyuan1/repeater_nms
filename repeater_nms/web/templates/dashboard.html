@@ -2,14 +2,15 @@
 
 {% block content %}
   <style>
-    .overview-head {
+    .overview-hero {
       display: flex;
-      justify-content: space-between;
+      flex-wrap: wrap;
       align-items: flex-end;
+      justify-content: space-between;
       gap: 16px;
       margin-bottom: 18px;
     }
-    .overview-head p {
+    .overview-hero p {
       margin: 8px 0 0;
       color: var(--muted);
       font-size: 14px;
@@ -21,11 +22,11 @@
       margin-bottom: 18px;
     }
     .summary-card {
+      padding: 18px;
       border: 1px solid var(--line);
       border-radius: 18px;
       background: linear-gradient(180deg, #ffffff 0%, #f6fbff 100%);
       box-shadow: var(--shadow);
-      padding: 18px;
     }
     .summary-card .label {
       color: var(--muted);
@@ -37,126 +38,140 @@
       font-weight: 700;
       line-height: 1;
     }
-    .device-grid {
+    .overview-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-      gap: 16px;
-      margin-bottom: 18px;
+      grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .device-board {
+      display: grid;
+      gap: 14px;
     }
     .device-card {
       border: 1px solid var(--line);
-      border-radius: 20px;
+      border-radius: 18px;
       background: #fff;
       box-shadow: var(--shadow);
-      padding: 18px;
+      padding: 16px;
     }
     .device-card-header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       gap: 12px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
-    .device-card-title {
-      font-size: 24px;
+    .device-title {
+      font-size: 22px;
       font-weight: 700;
       line-height: 1.2;
       margin: 0;
     }
-    .device-card-subtitle {
+    .device-subtitle {
       margin-top: 6px;
       color: var(--muted);
-      font-size: 14px;
+      font-size: 13px;
       line-height: 1.6;
     }
-    .status-strip {
+    .device-tags {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
-    .kpi-grid {
+    .device-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 10px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
-    .kpi-item {
-      border-radius: 14px;
+    .device-kpi {
+      padding: 10px 12px;
+      border-radius: 12px;
       background: #f7fafc;
       border: 1px solid #e4ebf3;
-      padding: 12px;
     }
-    .kpi-item .k-label {
-      color: var(--muted);
-      font-size: 12px;
-      margin-bottom: 6px;
-    }
-    .kpi-item .k-value {
-      font-size: 18px;
-      font-weight: 700;
-      line-height: 1.3;
-    }
-    .device-meta-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px 14px;
-      margin-bottom: 14px;
-    }
-    .meta-box {
-      border-top: 1px dashed #d7e2eb;
-      padding-top: 10px;
-    }
-    .meta-box .m-label {
+    .device-kpi .label {
       color: var(--muted);
       font-size: 12px;
       margin-bottom: 4px;
     }
-    .meta-box .m-value {
+    .device-kpi .value {
       font-size: 15px;
-      line-height: 1.5;
+      font-weight: 700;
+      line-height: 1.4;
       word-break: break-word;
     }
-    .device-card-footer {
+    .device-footer {
       display: flex;
-      justify-content: flex-end;
-      padding-top: 14px;
-      border-top: 1px solid #e4ebf3;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed #d9e2ec;
     }
-    .recent-traps-card {
+    .recent-panel {
       border: 1px solid var(--line);
-      border-radius: 20px;
+      border-radius: 18px;
       background: #fff;
       box-shadow: var(--shadow);
-      padding: 18px;
+      padding: 16px;
     }
-    .recent-traps-card h3 {
-      margin-top: 0;
-      margin-bottom: 14px;
+    .recent-panel h3 {
+      margin: 0 0 14px;
     }
-    .alarm-desc {
-      margin-top: 4px;
-      color: var(--muted);
-      font-size: 13px;
+    .recent-list {
+      display: grid;
+      gap: 12px;
+    }
+    .recent-item {
+      border: 1px solid #e5edf4;
+      border-radius: 14px;
+      background: #f9fbfd;
+      padding: 12px;
+    }
+    .recent-item-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .recent-item-title {
+      font-weight: 700;
       line-height: 1.4;
     }
-    @media (max-width: 960px) {
-      .summary-grid,
-      .kpi-grid,
-      .device-meta-grid {
+    .recent-item-sub {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    @media (max-width: 1180px) {
+      .overview-grid {
         grid-template-columns: 1fr;
       }
-      .overview-head {
+      .device-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 760px) {
+      .summary-grid,
+      .device-grid {
+        grid-template-columns: 1fr;
+      }
+      .device-footer,
+      .overview-hero {
         flex-direction: column;
         align-items: flex-start;
       }
     }
   </style>
 
-  <section class="overview-head">
+  <section class="overview-hero">
     <div>
       <h2 style="margin:0;">设备运行总览</h2>
-      <p>首页直接查看设备实时状态、最新采集结果和最近 Trap。</p>
+      <p>首页直接查看设备实时状态、采集质量、活动告警和最近 Trap。</p>
     </div>
     <a class="button secondary" href="{{ url_for('web.devices') }}">进入设备管理</a>
   </section>
@@ -176,114 +191,101 @@
     </article>
   </section>
 
-  <section class="device-grid">
-    {% for item in device_overviews %}
-      <article class="device-card">
-        <div class="device-card-header">
-          <div>
-            <h3 class="device-card-title">{{ item.device.name }}</h3>
-            <div class="device-card-subtitle">
-              <div>{{ item.device.ip }}</div>
-              <div>{{ item.profile_title }}</div>
+  <section class="overview-grid">
+    <div class="device-board">
+      {% for item in device_overviews %}
+        <article class="device-card">
+          <div class="device-card-header">
+            <div>
+              <h3 class="device-title">{{ item.device.name }}</h3>
+              <div class="device-subtitle">
+                <div>{{ item.device.ip }}</div>
+                <div>{{ item.profile_title }}</div>
+              </div>
+            </div>
+            <span class="tag {{ item.overview_status }}">{{ item.overview_status_label }}</span>
+          </div>
+
+          <div class="device-tags">
+            <span class="tag {{ item.device.last_poll_status or '' }}">{{ item.device.last_poll_status|poll_status_label }}</span>
+            {% if item.highest_alarm_severity %}
+              <span class="tag {{ item.highest_alarm_severity }}">{{ item.highest_alarm_label }}</span>
+            {% else %}
+              <span class="tag">无活动告警</span>
+            {% endif %}
+          </div>
+
+          <div class="device-grid">
+            <div class="device-kpi">
+              <div class="label">采集状态</div>
+              <div class="value">{{ item.device.last_poll_status|poll_status_label }}</div>
+            </div>
+            <div class="device-kpi">
+              <div class="label">活动告警</div>
+              <div class="value">{{ item.active_alarm_count }}</div>
+            </div>
+            <div class="device-kpi">
+              <div class="label">最高告警</div>
+              <div class="value">{{ item.highest_alarm_label if item.highest_alarm_severity else '无' }}</div>
+            </div>
+            <div class="device-kpi">
+              <div class="label">最近 Trap</div>
+              <div class="value">{{ item.recent_trap_at }}</div>
+            </div>
+            <div class="device-kpi">
+              <div class="label">最近采集</div>
+              <div class="value">{{ item.recent_poll_at }}</div>
+            </div>
+            <div class="device-kpi">
+              <div class="label">最近错误</div>
+              <div class="value">{{ item.recent_error }}</div>
+            </div>
+            <div class="device-kpi">
+              <div class="label">APS 活跃侧</div>
+              <div class="value">{{ item.aps_active }}</div>
+            </div>
+            <div class="device-kpi">
+              <div class="label">APS 状态</div>
+              <div class="value" title="{{ item.aps_stat_text or '' }}">{{ item.aps_stat }}</div>
+            </div>
+            <div class="device-kpi">
+              <div class="label">DFP 活跃侧</div>
+              <div class="value">{{ item.dfp_active }}</div>
             </div>
           </div>
-          <span class="tag {{ item.overview_status }}">{{ item.overview_status_label }}</span>
-        </div>
 
-        <div class="status-strip">
-          <span class="tag {{ item.device.last_poll_status or '' }}">{{ item.device.last_poll_status|poll_status_label }}</span>
-          {% if item.highest_alarm_severity %}
-            <span class="tag {{ item.highest_alarm_severity }}">{{ item.highest_alarm_label }}</span>
-          {% else %}
-            <span class="tag">无活动告警</span>
-          {% endif %}
-        </div>
+          <div class="device-footer">
+            <div class="muted">设备详情页可继续查看完整 SNMP 最新状态、Trap 和当前活动告警。</div>
+            <a class="button secondary" href="{{ url_for('web.device_detail', device_id=item.device.id) }}">查看详情</a>
+          </div>
+        </article>
+      {% else %}
+        <div class="soft-note">暂无设备。</div>
+      {% endfor %}
+    </div>
 
-        <div class="kpi-grid">
-          <div class="kpi-item">
-            <div class="k-label">采集状态</div>
-            <div class="k-value">{{ item.device.last_poll_status|poll_status_label }}</div>
-          </div>
-          <div class="kpi-item">
-            <div class="k-label">活动告警</div>
-            <div class="k-value">{{ item.active_alarm_count }}</div>
-          </div>
-          <div class="kpi-item">
-            <div class="k-label">最高告警</div>
-            <div class="k-value">{{ item.highest_alarm_label if item.highest_alarm_severity else '无' }}</div>
-          </div>
-        </div>
-
-        <div class="device-meta-grid">
-          <div class="meta-box">
-            <div class="m-label">最近 Trap</div>
-            <div class="m-value">{{ item.recent_trap_at }}</div>
-          </div>
-          <div class="meta-box">
-            <div class="m-label">最近采集</div>
-            <div class="m-value">{{ item.recent_poll_at }}</div>
-          </div>
-          <div class="meta-box">
-            <div class="m-label">最近错误</div>
-            <div class="m-value">{{ item.recent_error }}</div>
-          </div>
-          <div class="meta-box">
-            <div class="m-label">APS 活跃侧</div>
-            <div class="m-value">{{ item.aps_active }}</div>
-          </div>
-          <div class="meta-box">
-            <div class="m-label">APS 状态</div>
-            <div class="m-value" title="{{ item.aps_stat_text or '' }}">{{ item.aps_stat }}</div>
-          </div>
-          <div class="meta-box">
-            <div class="m-label">DFP 活跃侧</div>
-            <div class="m-value">{{ item.dfp_active }}</div>
-          </div>
-        </div>
-
-        <div class="device-card-footer">
-          <a class="button secondary" href="{{ url_for('web.device_detail', device_id=item.device.id) }}">查看详情</a>
-        </div>
-      </article>
-    {% else %}
-      <div class="soft-note">暂无设备。</div>
-    {% endfor %}
-  </section>
-
-  <section class="recent-traps-card">
-    <h3>最近 Trap</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>时间</th>
-          <th>设备</th>
-          <th>对象</th>
-          <th>告警</th>
-          <th>级别</th>
-          <th>状态</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
+    <aside class="recent-panel">
+      <h3>最近 Trap</h3>
+      <div class="recent-list">
         {% for item in recent_traps %}
-          <tr>
-            <td>{{ item.received_at }}</td>
-            <td>{{ item.device_name }}</td>
-            <td>{{ item.alarm_obj or '-' }}</td>
-            <td>
-              <div>{{ item.alarm_id or item.trap_name_label }}</div>
-              {% if item.alarm_description and item.alarm_description != item.alarm_id %}
-                <div class="alarm-desc">{{ item.alarm_description }}</div>
-              {% endif %}
-            </td>
-            <td><span class="tag {{ item.severity or '' }}">{{ item.severity_label }}</span></td>
-            <td><span class="tag {{ item.status or '' }}">{{ item.status_label }}</span></td>
-            <td><a class="button secondary" href="{{ item.detail_url }}">查看 Trap</a></td>
-          </tr>
+          <article class="recent-item">
+            <div class="recent-item-head">
+              <div>
+                <div class="recent-item-title">{{ item.alarm_id or item.trap_name_label }}</div>
+                <div class="recent-item-sub">{{ item.device_name }} / {{ item.alarm_obj or '-' }}</div>
+              </div>
+              <span class="tag {{ item.severity or '' }}">{{ item.severity_label }}</span>
+            </div>
+            <div class="recent-item-sub">{{ item.received_at }}</div>
+            <div class="recent-item-sub" style="margin-top:6px;">{{ item.summary_zh }}</div>
+            <div style="margin-top:10px;">
+              <a class="button secondary" href="{{ item.detail_url }}">查看 Trap</a>
+            </div>
+          </article>
         {% else %}
-          <tr><td colspan="7">暂无 Trap 数据。</td></tr>
+          <div class="soft-note" style="margin:0;">暂无 Trap 数据。</div>
         {% endfor %}
-      </tbody>
-    </table>
+      </div>
+    </aside>
   </section>
 {% endblock %}

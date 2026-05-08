@@ -2,31 +2,152 @@
 
 {% block content %}
   <style>
-    .alarm-table-wrap {
-      overflow-x: auto;
+    .alarm-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 14px;
     }
-    .alarm-table {
-      min-width: 1320px;
+    .alarm-timeline {
+      display: grid;
+      gap: 14px;
     }
-    .alarm-table th:nth-child(1) { width: 140px; }
-    .alarm-table th:nth-child(2) { width: 130px; }
-    .alarm-table th:nth-child(3) { width: 100px; }
-    .alarm-table th:nth-child(4) { width: 180px; }
-    .alarm-table th:nth-child(5) { width: 80px; }
-    .alarm-table th:nth-child(6) { width: 80px; }
-    .alarm-table th:nth-child(7) { width: 90px; }
-    .alarm-table th:nth-child(8) { width: 90px; }
-    .alarm-table th:nth-child(9) { width: 70px; }
-    .alarm-table th:nth-child(10) { width: 180px; }
-    .alarm-table th:nth-child(11) { width: 240px; }
-    .alarm-table th:nth-child(12) { width: 140px; }
-    .alarm-main {
-      font-weight: 600;
+    .timeline-item {
+      display: grid;
+      grid-template-columns: 140px 24px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
     }
-    .alarm-sub {
+    .timeline-time {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      padding-top: 6px;
+    }
+    .timeline-axis {
+      position: relative;
+      min-height: 100%;
+      display: flex;
+      justify-content: center;
+    }
+    .timeline-axis::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: -20px;
+      left: 50%;
+      width: 2px;
+      transform: translateX(-50%);
+      background: #d9e2ec;
+    }
+    .timeline-dot {
+      position: relative;
+      z-index: 1;
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      margin-top: 8px;
+      border: 3px solid #fff;
+      box-shadow: 0 0 0 1px #d9e2ec;
+      background: #94a3b8;
+    }
+    .timeline-dot.report,
+    .timeline-dot.change {
+      background: #0f5c7a;
+    }
+    .timeline-dot.close,
+    .timeline-dot.cleared {
+      background: #94a3b8;
+    }
+    .timeline-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fff;
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+    .timeline-card-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .timeline-title {
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+    .timeline-subtitle {
       margin-top: 4px;
       color: var(--muted);
+      font-size: 13px;
+    }
+    .timeline-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .timeline-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .timeline-field {
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #f7fafc;
+      border: 1px solid #e4ebf3;
+    }
+    .timeline-field .label {
+      color: var(--muted);
       font-size: 12px;
+      margin-bottom: 4px;
+    }
+    .timeline-field .value {
+      font-size: 14px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .timeline-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 12px;
+      border-top: 1px dashed #d9e2ec;
+    }
+    .page-jump {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .page-jump input,
+    .page-jump select {
+      width: auto;
+      min-width: 78px;
+    }
+    @media (max-width: 1080px) {
+      .timeline-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    @media (max-width: 760px) {
+      .timeline-item {
+        grid-template-columns: 1fr;
+      }
+      .timeline-axis {
+        display: none;
+      }
+      .timeline-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 
@@ -87,6 +208,14 @@
         </select>
       </label>
       <label>
+        <div class="muted">每页条数</div>
+        <select name="per_page">
+          {% for size in per_page_options %}
+            <option value="{{ size }}" {% if filters.per_page == size|string %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
         <div class="muted">开始时间</div>
         <input type="datetime-local" name="start_at" value="{{ filters.start_at }}">
       </label>
@@ -99,75 +228,101 @@
         <input type="text" name="keyword" value="{{ filters.keyword }}" placeholder="支持对象、告警 ID、中文说明、摘要、备注">
       </label>
     </div>
-    <div class="toolbar" style="margin-top:14px;margin-bottom:0;">
-      <button type="submit">应用过滤</button>
-      <a class="button secondary" href="{{ url_for('web.alarms') }}">重置</a>
-      <span class="muted">共 {{ pager.total }} 条，当前第 {{ pager.page }} / {{ pager.total_pages }} 页</span>
+    <div class="alarm-toolbar">
+      <div class="muted">共 {{ pager.total }} 条，当前第 {{ pager.page }} / {{ pager.total_pages }} 页</div>
+      <div class="page-jump">
+        <button type="submit">应用过滤</button>
+        <a class="button secondary" href="{{ url_for('web.alarms') }}">重置</a>
+      </div>
     </div>
   </form>
 
-  <div class="card alarm-table-wrap">
-    <table class="table-compact alarm-table">
-      <thead>
-        <tr>
-          <th>时间</th>
-          <th>设备</th>
-          <th>对象</th>
-          <th>告警</th>
-          <th>级别</th>
-          <th>事件</th>
-          <th>当前状态</th>
-          <th>确认状态</th>
-          <th>次数</th>
-          <th>备注</th>
-          <th>摘要</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in alarm_rows %}
-          {% set event = row.event %}
-          {% set active_alarm = row.active_alarm %}
-          <tr>
-            <td><div class="ellipsis" title="{{ event.occurred_at|dt }}">{{ event.occurred_at|dt }}</div></td>
-            <td><div class="ellipsis" title="{{ row.device_name }}">{{ row.device_name }}</div></td>
-            <td><div class="ellipsis" title="{{ event.alarm_obj or '-' }}">{{ event.alarm_obj or '-' }}</div></td>
-            <td>
-              <div class="alarm-main ellipsis" title="{{ event.alarm_id or '-' }}">{{ event.alarm_id or '-' }}</div>
-              {% if row.alarm_description and row.alarm_description != event.alarm_id %}
-                <div class="alarm-sub ellipsis" title="{{ row.alarm_description }}">{{ row.alarm_description }}</div>
-              {% endif %}
-            </td>
-            <td><span class="tag {{ event.severity or '' }}">{{ row.severity_label }}</span></td>
-            <td><span class="tag {{ event.status or '' }}">{{ row.status_label }}</span></td>
-            <td><span class="tag {{ 'ok' if active_alarm and active_alarm.is_open else 'close' }}">{{ row.active_state_label }}</span></td>
-            <td><span class="tag {{ 'acknowledged' if active_alarm and active_alarm.is_acknowledged else 'warning' }}">{{ row.ack_state_label }}</span></td>
-            <td>{{ active_alarm.occurrence_count if active_alarm else '-' }}</td>
-            <td><div class="ellipsis" title="{{ active_alarm.notes if active_alarm and active_alarm.notes else '-' }}">{{ active_alarm.notes if active_alarm and active_alarm.notes else '-' }}</div></td>
-            <td><div class="ellipsis" title="{{ event.message or '-' }}">{{ event.message or '-' }}</div></td>
-            <td>
-              <div style="display:flex;flex-direction:column;gap:8px;">
-                {% if row.trap_event %}
-                  <a class="button secondary" href="{{ url_for('web.trap_detail', trap_id=row.trap_event.id) }}">查看 Trap</a>
-                {% endif %}
-                {% if active_alarm and active_alarm.is_open and not active_alarm.is_acknowledged and current_user.role in ['admin', 'operator'] %}
-                  <form method="post" action="{{ url_for('web.ack_alarm', alarm_id=active_alarm.id) }}" class="grid" style="gap:8px;">
-                    <input type="text" name="note" placeholder="确认备注，可留空">
-                    <button type="submit">确认</button>
-                  </form>
+  <div class="alarm-timeline">
+    {% for row in alarm_rows %}
+      {% set event = row.event %}
+      {% set active_alarm = row.active_alarm %}
+      <article class="timeline-item">
+        <div class="timeline-time">
+          <div>{{ event.occurred_at|dt }}</div>
+          <div style="margin-top:4px;">{{ row.event_state_label }}</div>
+        </div>
+        <div class="timeline-axis">
+          <span class="timeline-dot {{ event.status or event.severity or '' }}"></span>
+        </div>
+        <div class="timeline-card">
+          <div class="timeline-card-header">
+            <div>
+              <div class="timeline-title">
+                {{ event.alarm_id or '-' }}
+                {% if row.alarm_description and row.alarm_description != event.alarm_id %}
+                  / {{ row.alarm_description }}
                 {% endif %}
               </div>
-            </td>
-          </tr>
-        {% else %}
-          <tr><td colspan="12">暂无告警数据。</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+              <div class="timeline-subtitle">
+                {{ row.device_name }} / {{ event.alarm_obj or '未知对象' }}
+              </div>
+            </div>
+            <div class="timeline-tags">
+              <span class="tag {{ event.severity or '' }}">{{ row.severity_label }}</span>
+              <span class="tag {{ event.status or '' }}">{{ row.status_label }}</span>
+              <span class="tag {{ 'ok' if active_alarm and active_alarm.is_open else 'close' }}">{{ row.active_state_label }}</span>
+              <span class="tag {{ 'acknowledged' if active_alarm and active_alarm.is_acknowledged else 'warning' }}">{{ row.ack_state_label }}</span>
+            </div>
+          </div>
 
+          <div class="timeline-grid">
+            <div class="timeline-field">
+              <div class="label">发生对象</div>
+              <div class="value">{{ event.alarm_obj or '-' }}</div>
+            </div>
+            <div class="timeline-field">
+              <div class="label">累计次数</div>
+              <div class="value">{{ active_alarm.occurrence_count if active_alarm else '-' }}</div>
+            </div>
+            <div class="timeline-field">
+              <div class="label">备注</div>
+              <div class="value">{{ active_alarm.notes if active_alarm and active_alarm.notes else '-' }}</div>
+            </div>
+            <div class="timeline-field">
+              <div class="label">摘要</div>
+              <div class="value">{{ event.message or '-' }}</div>
+            </div>
+          </div>
+
+          <div class="timeline-actions">
+            <div class="muted">
+              {% if event.status == 'close' or event.severity == 'cleared' %}
+                该条为恢复/关闭事件，不再允许确认。
+              {% elif row.can_ack %}
+                该条为当前最新活动告警，可执行确认。
+              {% else %}
+                该条不是当前可确认告警，可能已关闭、已确认或已被更新事件覆盖。
+              {% endif %}
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+              {% if row.trap_event %}
+                <a class="button secondary" href="{{ url_for('web.trap_detail', trap_id=row.trap_event.id) }}">查看 Trap</a>
+              {% endif %}
+              {% if row.can_ack and current_user.role in ['admin', 'operator'] %}
+                <form method="post" action="{{ url_for('web.ack_alarm', alarm_id=active_alarm.id) }}" class="page-jump">
+                  <input type="text" name="note" placeholder="确认备注，可留空">
+                  <button type="submit">确认</button>
+                </form>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </article>
+    {% else %}
+      <div class="soft-note">暂无告警数据。</div>
+    {% endfor %}
+  </div>
+
+  <div class="card" style="margin-top:18px;">
     <div class="pager">
       <div class="muted">每页 {{ pager.per_page }} 条</div>
       <div class="page-links">
+        {% if pager.first_url %}<a href="{{ pager.first_url }}">首页</a>{% endif %}
         {% if pager.prev_url %}<a href="{{ pager.prev_url }}">上一页</a>{% endif %}
         {% for item in pager.pages %}
           {% if item.current %}
@@ -177,7 +332,22 @@
           {% endif %}
         {% endfor %}
         {% if pager.next_url %}<a href="{{ pager.next_url }}">下一页</a>{% endif %}
+        {% if pager.last_url %}<a href="{{ pager.last_url }}">末页</a>{% endif %}
       </div>
+      <form method="get" class="page-jump">
+        <input type="hidden" name="device_id" value="{{ filters.device_id }}">
+        <input type="hidden" name="severity" value="{{ filters.severity }}">
+        <input type="hidden" name="ack_state" value="{{ filters.ack_state }}">
+        <input type="hidden" name="open_state" value="{{ filters.open_state }}">
+        <input type="hidden" name="history_status" value="{{ filters.history_status }}">
+        <input type="hidden" name="keyword" value="{{ filters.keyword }}">
+        <input type="hidden" name="start_at" value="{{ filters.start_at }}">
+        <input type="hidden" name="end_at" value="{{ filters.end_at }}">
+        <input type="hidden" name="per_page" value="{{ filters.per_page }}">
+        <span class="muted">跳转到</span>
+        <input type="number" name="page" min="1" max="{{ pager.total_pages }}" value="{{ pager.page }}">
+        <button type="submit" class="secondary">跳页</button>
+      </form>
     </div>
   </div>
 {% endblock %}

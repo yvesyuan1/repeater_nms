@@ -2,48 +2,84 @@
 
 {% block content %}
   <style>
+    .trap-filter-card {
+      margin-bottom: 18px;
+    }
+    .filter-fold summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      cursor: pointer;
+      list-style: none;
+      font-weight: 700;
+    }
+    .filter-fold summary::-webkit-details-marker {
+      display: none;
+    }
+    .filter-fold summary .summary-meta {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .filter-fold[open] summary {
+      margin-bottom: 14px;
+    }
     .trap-filter-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 12px;
-      margin-bottom: 16px;
-    }
-    .trap-toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      justify-content: space-between;
-      margin-top: 12px;
     }
     .trap-table-wrap {
       overflow-x: auto;
     }
     .trap-table {
-      min-width: 1480px;
+      min-width: 1460px;
+      table-layout: fixed;
     }
-    .trap-table th:nth-child(1) { width: 140px; }
+    .trap-table th:nth-child(1) { width: 148px; }
     .trap-table th:nth-child(2) { width: 110px; }
-    .trap-table th:nth-child(3) { width: 130px; }
+    .trap-table th:nth-child(3) { width: 150px; }
     .trap-table th:nth-child(4) { width: 110px; }
-    .trap-table th:nth-child(5) { width: 80px; }
-    .trap-table th:nth-child(6) { width: 100px; }
-    .trap-table th:nth-child(7) { width: 170px; }
-    .trap-table th:nth-child(8) { width: 80px; }
-    .trap-table th:nth-child(9) { width: 120px; }
+    .trap-table th:nth-child(5) { width: 76px; }
+    .trap-table th:nth-child(6) { width: 95px; }
+    .trap-table th:nth-child(7) { width: 180px; }
+    .trap-table th:nth-child(8) { width: 76px; }
+    .trap-table th:nth-child(9) { width: 116px; }
     .trap-table th:nth-child(10) { width: 140px; }
-    .trap-table th:nth-child(11) { width: 420px; }
+    .trap-table th:nth-child(11) { width: 410px; }
     .trap-table th:nth-child(12) { width: 110px; }
     .trap-main {
-      font-weight: 600;
+      font-weight: 700;
     }
     .trap-sub {
       margin-top: 4px;
       color: var(--muted);
       font-size: 12px;
     }
-    .trap-summary {
-      max-width: 420px;
+    .trap-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .page-tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .page-tools form {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .page-tools select,
+    .page-tools input {
+      width: auto;
+      min-width: 78px;
     }
     @media (max-width: 1200px) {
       .trap-filter-grid {
@@ -57,79 +93,100 @@
     }
   </style>
 
-  <form method="get" class="card" style="margin-bottom:18px;">
-    <div class="trap-filter-grid">
-      <section class="checklist-filter">
-        <h4>级别过滤</h4>
-        <input class="option-search" type="text" placeholder="搜索级别" data-filter-target="severity-options">
-        <div class="option-list" id="severity-options">
-          {% for name in ['critical', 'major', 'minor', 'warning', 'indeterminate', 'cleared'] %}
-            <label class="option-item" data-filter-text="{{ name }} {{ name|severity_label }}">
-              <input type="checkbox" name="severity" value="{{ name }}" {% if name in filter_severities %}checked{% endif %}>
-              <span>{{ name|severity_label }}</span>
-            </label>
-          {% endfor %}
+  <div class="card trap-filter-card">
+    <details class="filter-fold" open>
+      <summary>
+        <span>筛选条件</span>
+        <span class="summary-meta">
+          级别 {{ filter_severities|length }} 项，类型 {{ filter_trap_types|length }} 项，设备 {{ filter_device_ids|length }} 项
+        </span>
+      </summary>
+
+      <form method="get">
+        <div class="trap-filter-grid">
+          <section class="checklist-filter">
+            <h4>级别过滤</h4>
+            <input class="option-search" type="text" placeholder="搜索级别" data-filter-target="severity-options">
+            <div class="option-list" id="severity-options">
+              {% for name in severity_options %}
+                <label class="option-item" data-filter-text="{{ name }} {{ name|severity_label }}">
+                  <input type="checkbox" name="severity" value="{{ name }}" {% if name in filter_severities %}checked{% endif %}>
+                  <span>{{ name|severity_label }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </section>
+
+          <section class="checklist-filter">
+            <h4>Trap 类型</h4>
+            <input class="option-search" type="text" placeholder="搜索类型" data-filter-target="trap-type-options">
+            <div class="option-list" id="trap-type-options">
+              {% for name in trap_type_options %}
+                <label class="option-item" data-filter-text="{{ name }} {{ name|trap_type_label }}">
+                  <input type="checkbox" name="trap_type" value="{{ name }}" {% if name in filter_trap_types %}checked{% endif %}>
+                  <span>{{ name|trap_type_label }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </section>
+
+          <section class="checklist-filter">
+            <h4>设备过滤</h4>
+            <input class="option-search" type="text" placeholder="搜索设备名或 IP" data-filter-target="device-options">
+            <div class="option-list" id="device-options">
+              {% for item in devices %}
+                <label class="option-item" data-filter-text="{{ item.name }} {{ item.ip }}">
+                  <input type="checkbox" name="device_id" value="{{ item.id }}" {% if item.id in filter_device_ids %}checked{% endif %}>
+                  <span>{{ item.name }} / {{ item.ip }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </section>
+
+          <section class="checklist-filter">
+            <h4>关键字</h4>
+            <input type="text" name="keyword" value="{{ filter_keyword }}" placeholder="支持对象、告警 ID、源 IP、PDU、摘要">
+            <div class="muted" style="margin-top:10px;">
+              设备选项来自设备表，级别和 Trap 类型会按当前库中真实数据自动更新，不是写死的。
+            </div>
+          </section>
         </div>
-      </section>
 
-      <section class="checklist-filter">
-        <h4>Trap 类型过滤</h4>
-        <input class="option-search" type="text" placeholder="搜索类型" data-filter-target="trap-type-options">
-        <div class="option-list" id="trap-type-options">
-          {% for name, label in [('alarm', '告警 Trap'), ('performance', '性能 Trap'), ('generic', '通用 Trap')] %}
-            <label class="option-item" data-filter-text="{{ name }} {{ label }}">
-              <input type="checkbox" name="trap_type" value="{{ name }}" {% if name in filter_trap_types %}checked{% endif %}>
-              <span>{{ label }}</span>
+        <div class="trap-toolbar">
+          <div class="muted">共 {{ pager.total }} 条，当前第 {{ pager.page }} / {{ pager.total_pages }} 页</div>
+          <div class="page-tools">
+            <label class="muted">
+              每页
+              <select name="per_page">
+                {% for size in per_page_options %}
+                  <option value="{{ size }}" {% if pager.per_page == size %}selected{% endif %}>{{ size }}</option>
+                {% endfor %}
+              </select>
             </label>
-          {% endfor %}
+            <button type="submit">应用过滤</button>
+            <a class="button secondary" href="{{ url_for('web.traps') }}">重置</a>
+          </div>
+          <div class="muted" id="sse-status">实时通道：连接中</div>
         </div>
-      </section>
-
-      <section class="checklist-filter">
-        <h4>设备过滤</h4>
-        <input class="option-search" type="text" placeholder="搜索设备名称或 IP" data-filter-target="device-options">
-        <div class="option-list" id="device-options">
-          {% for item in devices %}
-            <label class="option-item" data-filter-text="{{ item.name }} {{ item.ip }}">
-              <input type="checkbox" name="device_id" value="{{ item.id }}" {% if item.id in filter_device_ids %}checked{% endif %}>
-              <span>{{ item.name }} / {{ item.ip }}</span>
-            </label>
-          {% endfor %}
-        </div>
-      </section>
-
-      <section class="checklist-filter">
-        <h4>关键字搜索</h4>
-        <input type="text" name="keyword" value="{{ filter_keyword }}" placeholder="支持对象、告警 ID、来源 IP、PDU、摘要">
-        <div class="muted" style="margin-top:10px;">当前页支持实时插入，新到达事件会优先显示在第 1 页。</div>
-      </section>
-    </div>
-
-    <div class="trap-toolbar">
-      <div class="muted">共 {{ pager.total }} 条，当前第 {{ pager.page }} / {{ pager.total_pages }} 页</div>
-      <div style="display:flex;gap:10px;">
-        <button type="submit">应用过滤</button>
-        <a class="button secondary" href="{{ url_for('web.traps') }}">重置</a>
-      </div>
-      <div class="muted" id="sse-status">实时通道：连接中</div>
-    </div>
-  </form>
+      </form>
+    </details>
+  </div>
 
   <div class="card trap-table-wrap">
     <table class="table-compact trap-table" id="trap-table">
       <thead>
         <tr>
-          <th>时间</th>
+          <th>接收时间</th>
           <th>源 IP</th>
           <th>设备</th>
-          <th>类型</th>
+          <th>Trap 类型</th>
           <th>级别</th>
           <th>对象</th>
-          <th>告警</th>
+          <th>告警信息</th>
           <th>状态</th>
-          <th>设备时间</th>
-          <th>PDU</th>
-          <th>摘要</th>
+          <th>设备原始时间</th>
+          <th>PDU ID</th>
+          <th>中文摘要</th>
           <th>操作</th>
         </tr>
       </thead>
@@ -151,7 +208,7 @@
             <td><span class="tag {{ item.status or '' }}">{{ item.status_label }}</span></td>
             <td><div class="ellipsis" title="{{ item.device_alarm_time_raw or '-' }}">{{ item.device_alarm_time_raw or '-' }}</div></td>
             <td><div class="ellipsis" title="{{ item.pdu_id or '-' }}">{{ item.pdu_id or '-' }}</div></td>
-            <td><div class="trap-summary ellipsis" title="{{ item.summary_zh }}">{{ item.summary_zh }}</div></td>
+            <td><div class="ellipsis" title="{{ item.summary_zh }}">{{ item.summary_zh }}</div></td>
             <td><a class="button secondary" href="{{ item.detail_url }}">查看详情</a></td>
           </tr>
         {% else %}
@@ -163,6 +220,7 @@
     <div class="pager">
       <div class="muted">每页 {{ pager.per_page }} 条</div>
       <div class="page-links">
+        {% if pager.first_url %}<a href="{{ pager.first_url }}">首页</a>{% endif %}
         {% if pager.prev_url %}<a href="{{ pager.prev_url }}">上一页</a>{% endif %}
         {% for item in pager.pages %}
           {% if item.current %}
@@ -172,7 +230,18 @@
           {% endif %}
         {% endfor %}
         {% if pager.next_url %}<a href="{{ pager.next_url }}">下一页</a>{% endif %}
+        {% if pager.last_url %}<a href="{{ pager.last_url }}">末页</a>{% endif %}
       </div>
+      <form method="get" class="page-tools">
+        {% for value in filter_severities %}<input type="hidden" name="severity" value="{{ value }}">{% endfor %}
+        {% for value in filter_trap_types %}<input type="hidden" name="trap_type" value="{{ value }}">{% endfor %}
+        {% for value in filter_device_ids %}<input type="hidden" name="device_id" value="{{ value }}">{% endfor %}
+        <input type="hidden" name="keyword" value="{{ filter_keyword }}">
+        <input type="hidden" name="per_page" value="{{ pager.per_page }}">
+        <span class="muted">跳转到</span>
+        <input type="number" name="page" min="1" max="{{ pager.total_pages }}" value="{{ pager.page }}">
+        <button type="submit" class="secondary">跳页</button>
+      </form>
     </div>
   </div>
 
@@ -184,28 +253,6 @@
     const currentPage = {{ pager.page }};
     const trapBody = document.getElementById("trap-body");
     const sseStatus = document.getElementById("sse-status");
-    const severityLabels = {
-      critical: "严重",
-      major: "主要",
-      minor: "次要",
-      warning: "告警",
-      indeterminate: "不确定",
-      cleared: "已清除"
-    };
-    const statusLabels = {
-      report: "上报",
-      change: "变化",
-      close: "关闭"
-    };
-    const trapNameLabels = {
-      almchg: "告警变更",
-      performance: "性能上报"
-    };
-    const trapTypeLabels = {
-      alarm: "告警 Trap",
-      performance: "性能 Trap",
-      generic: "通用 Trap"
-    };
 
     function attachSearchFilters() {
       document.querySelectorAll(".option-search").forEach((input) => {
@@ -214,8 +261,7 @@
           if (!target) return;
           const keyword = input.value.trim().toLowerCase();
           target.querySelectorAll(".option-item").forEach((item) => {
-            const haystack = item.dataset.filterText.toLowerCase();
-            item.style.display = !keyword || haystack.includes(keyword) ? "" : "none";
+            item.style.display = !keyword || item.dataset.filterText.toLowerCase().includes(keyword) ? "" : "none";
           });
         });
       });
@@ -245,25 +291,24 @@
     }
 
     function prependRow(payload) {
-      if (currentPage !== 1) return;
-      if (!passesFilter(payload)) return;
+      if (currentPage !== 1 || !passesFilter(payload)) return;
       const detailId = payload.id || payload.trap_event_id;
       const row = document.createElement("tr");
       row.innerHTML = `
         <td><div class="ellipsis" title="${cell(payload.received_at_display || payload.received_at)}">${cell(payload.received_at_display || payload.received_at)}</div></td>
         <td><div class="ellipsis" title="${cell(payload.source_ip)}">${cell(payload.source_ip)}</div></td>
         <td><div class="ellipsis" title="${cell(payload.device_name)}">${cell(payload.device_name)}</div></td>
-        <td><div class="ellipsis" title="${cell(payload.trap_name_label || trapNameLabels[payload.trap_name] || payload.trap_type_label || trapTypeLabels[payload.trap_type])}">${cell(payload.trap_name_label || trapNameLabels[payload.trap_name] || payload.trap_type_label || trapTypeLabels[payload.trap_type])}</div></td>
-        <td><span class="tag ${payload.severity || ""}">${cell(payload.severity_label || severityLabels[payload.severity])}</span></td>
+        <td><div class="ellipsis" title="${cell(payload.trap_name_label || payload.trap_type_label)}">${cell(payload.trap_name_label || payload.trap_type_label)}</div></td>
+        <td><span class="tag ${payload.severity || ""}">${cell(payload.severity_label)}</span></td>
         <td><div class="ellipsis" title="${cell(payload.alarm_obj)}">${cell(payload.alarm_obj)}</div></td>
         <td>
           <div class="trap-main ellipsis" title="${cell(payload.alarm_id)}">${cell(payload.alarm_id)}</div>
           ${payload.alarm_description && payload.alarm_description !== payload.alarm_id ? `<div class="trap-sub ellipsis" title="${payload.alarm_description}">${payload.alarm_description}</div>` : ""}
         </td>
-        <td><span class="tag ${payload.status || ""}">${cell(payload.status_label || statusLabels[payload.status])}</span></td>
+        <td><span class="tag ${payload.status || ""}">${cell(payload.status_label)}</span></td>
         <td><div class="ellipsis" title="${cell(payload.device_alarm_time_raw)}">${cell(payload.device_alarm_time_raw)}</div></td>
         <td><div class="ellipsis" title="${cell(payload.pdu_id)}">${cell(payload.pdu_id)}</div></td>
-        <td><div class="trap-summary ellipsis" title="${cell(payload.summary_zh || payload.raw_summary)}">${cell(payload.summary_zh || payload.raw_summary)}</div></td>
+        <td><div class="ellipsis" title="${cell(payload.summary_zh || payload.raw_summary)}">${cell(payload.summary_zh || payload.raw_summary)}</div></td>
         <td>${detailId ? `<a class="button secondary" href="/traps/${detailId}">查看详情</a>` : "-"}</td>
       `;
       const emptyRow = trapBody.querySelector("tr td[colspan='12']");
@@ -280,7 +325,6 @@
     }
 
     attachSearchFilters();
-    sseStatus.textContent = "实时通道：连接中";
     source.onopen = () => { sseStatus.textContent = "实时通道：已连接"; };
     source.addEventListener("trap_event", (event) => {
       sseStatus.textContent = "实时通道：已连接";
