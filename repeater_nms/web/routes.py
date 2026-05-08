@@ -4,6 +4,7 @@ import json
 import time
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlencode
 
 from flask import (
     Blueprint,
@@ -152,6 +153,54 @@ def _int_form(name: str, default: int, *, minimum: int | None = None) -> int:
     if minimum is not None:
         value = max(minimum, value)
     return value
+
+
+def _clean_multi_values(name: str) -> list[str]:
+    values: list[str] = []
+    for item in request.args.getlist(name):
+        text = item.strip()
+        if text and text not in values:
+            values.append(text)
+    return values
+
+
+def _page_number(default: int = 1) -> int:
+    return max(request.args.get("page", default, type=int) or default, 1)
+
+
+def _build_page_url(endpoint: str, page: int, **params: Any) -> str:
+    payload: dict[str, Any] = {"page": page}
+    for key, value in params.items():
+        if value in (None, "", [], ()):
+            continue
+        payload[key] = value
+    base = url_for(endpoint)
+    query = urlencode(payload, doseq=True)
+    return f"{base}?{query}" if query else base
+
+
+def _build_pager(*, endpoint: str, page: int, per_page: int, total: int, **params: Any) -> dict[str, Any]:
+    total_pages = max((total + per_page - 1) // per_page, 1)
+    current_page = min(max(page, 1), total_pages)
+    start_page = max(1, current_page - 2)
+    end_page = min(total_pages, current_page + 2)
+    pages = [
+        {
+            "number": number,
+            "url": _build_page_url(endpoint, number, **params),
+            "current": number == current_page,
+        }
+        for number in range(start_page, end_page + 1)
+    ]
+    return {
+        "page": current_page,
+        "per_page": per_page,
+        "total": total,
+        "total_pages": total_pages,
+        "pages": pages,
+        "prev_url": _build_page_url(endpoint, current_page - 1, **params) if current_page > 1 else None,
+        "next_url": _build_page_url(endpoint, current_page + 1, **params) if current_page < total_pages else None,
+    }
 
 
 def _redirect_profile_page(profile_code: str | None = None, **query):
@@ -719,6 +768,11 @@ def mib_nodes():
                 ("", "不做判断"),
                 ("enum_equals", "枚举值匹配"),
                 ("value_equals", "原始值匹配"),
+                ("number_gt", "数值大于"),
+                ("number_gte", "数值大于等于"),
+                ("number_lt", "数值小于"),
+                ("number_lte", "数值小于等于"),
+                ("number_between", "数值区间"),
             ],
             health_options=[
                 ("", "未知"),
@@ -1272,14 +1326,19 @@ def delete_alarm_rule(rule_id: int):
 @login_required
 def traps():
     session = get_db_session()
-    severity = request.args.get("severity", "").strip()
-    device_id = request.args.get("device_id", "").strip()
+    severity_values = _clean_multi_values("severity")
+    trap_type_values = _clean_multi_values("trap_type")
+    device_ids = [int(item) for item in _clean_multi_values("device_id") if item.isdigit()]
     keyword = request.args.get("keyword", "").strip()
+    page = _page_number()
+    per_page = 30
     stmt = select(TrapEvent)
-    if severity:
-        stmt = stmt.where(TrapEvent.severity == severity)
-    if device_id:
-        stmt = stmt.where(TrapEvent.device_id == int(device_id))
+    if severity_values:
+        stmt = stmt.where(TrapEvent.severity.in_(severity_values))
+    if trap_type_values:
+        stmt = stmt.where(TrapEvent.trap_type.in_(trap_type_values))
+    if device_ids:
+        stmt = stmt.where(TrapEvent.device_id.in_(device_ids))
     if keyword:
         stmt = stmt.where(
             or_(
@@ -1290,7 +1349,22 @@ def traps():
                 TrapEvent.raw_summary.ilike(f"%{keyword}%"),
             )
         )
-    trap_rows = session.execute(stmt.order_by(TrapEvent.received_at.desc(), TrapEvent.id.desc()).limit(100)).scalars().all()
+    total = session.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+    pager = _build_pager(
+        endpoint="web.traps",
+        page=page,
+        per_page=per_page,
+        total=total,
+        severity=severity_values,
+        trap_type=trap_type_values,
+        device_id=device_ids,
+        keyword=keyword,
+    )
+    trap_rows = session.execute(
+        stmt.order_by(TrapEvent.received_at.desc(), TrapEvent.id.desc())
+        .offset((pager["page"] - 1) * per_page)
+        .limit(per_page)
+    ).scalars().all()
     devices = _device_map(session)
     profiles = _profile_map(session)
     trap_views = [
@@ -1303,9 +1377,11 @@ def traps():
             page_name="Trap 实时页面",
             traps=trap_views,
             devices=list(devices.values()),
-            filter_severity=severity,
-            filter_device_id=device_id,
+            filter_severities=severity_values,
+            filter_trap_types=trap_type_values,
+            filter_device_ids=device_ids,
             filter_keyword=keyword,
+            pager=pager,
         ),
     )
 
@@ -1347,13 +1423,15 @@ def alarms():
     device_id = request.args.get("device_id", "").strip()
     severity = request.args.get("severity", "").strip()
     ack_state = request.args.get("ack_state", "").strip()
-    open_state = request.args.get("open_state", "open").strip() or "open"
+    open_state = request.args.get("open_state", "all").strip() or "all"
     history_status = request.args.get("history_status", "").strip()
     keyword = request.args.get("keyword", "").strip()
     start_at = request.args.get("start_at", "").strip()
     end_at = request.args.get("end_at", "").strip()
+    page = _page_number()
+    per_page = 30
 
-    events = session.execute(select(AlarmEvent).order_by(AlarmEvent.occurred_at.desc(), AlarmEvent.id.desc()).limit(500)).scalars().all()
+    events = session.execute(select(AlarmEvent).order_by(AlarmEvent.occurred_at.desc(), AlarmEvent.id.desc())).scalars().all()
     active_map = {item.id: item for item in session.execute(select(ActiveAlarm)).scalars().all()}
     devices = session.execute(select(Device).order_by(Device.name.asc())).scalars().all()
     device_names = {item.id: item.name for item in devices}
@@ -1433,6 +1511,22 @@ def alarms():
 
     active_count = sum(1 for item in active_map.values() if item.is_open)
     unacked_count = sum(1 for item in active_map.values() if item.is_open and not item.is_acknowledged)
+    total = len(rows)
+    pager = _build_pager(
+        endpoint="web.alarms",
+        page=page,
+        per_page=per_page,
+        total=total,
+        device_id=device_id,
+        severity=severity,
+        ack_state=ack_state,
+        open_state=open_state,
+        history_status=history_status,
+        keyword=keyword,
+        start_at=start_at,
+        end_at=end_at,
+    )
+    rows = rows[(pager["page"] - 1) * per_page : pager["page"] * per_page]
     return render_template(
         "alarms.html",
         **_base_context(
@@ -1441,6 +1535,7 @@ def alarms():
             devices=devices,
             active_count=active_count,
             unacked_count=unacked_count,
+            pager=pager,
             filters={
                 "device_id": device_id,
                 "severity": severity,
@@ -1497,14 +1592,17 @@ def logs():
 @login_required
 def api_trap_events():
     session = get_db_session()
-    severity = request.args.get("severity", "").strip()
-    device_id = request.args.get("device_id", "").strip()
+    severity_values = _clean_multi_values("severity")
+    trap_type_values = _clean_multi_values("trap_type")
+    device_ids = [int(item) for item in _clean_multi_values("device_id") if item.isdigit()]
     keyword = request.args.get("keyword", "").strip()
     stmt = select(TrapEvent)
-    if severity:
-        stmt = stmt.where(TrapEvent.severity == severity)
-    if device_id:
-        stmt = stmt.where(TrapEvent.device_id == int(device_id))
+    if severity_values:
+        stmt = stmt.where(TrapEvent.severity.in_(severity_values))
+    if trap_type_values:
+        stmt = stmt.where(TrapEvent.trap_type.in_(trap_type_values))
+    if device_ids:
+        stmt = stmt.where(TrapEvent.device_id.in_(device_ids))
     if keyword:
         stmt = stmt.where(
             or_(

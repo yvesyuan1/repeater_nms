@@ -228,6 +228,79 @@
         color: var(--muted);
         line-height: 1.6;
       }
+      .pager {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 16px;
+      }
+      .pager .page-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      .pager .page-links a,
+      .pager .page-links span {
+        min-width: 38px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: #fff;
+        text-align: center;
+        color: var(--text);
+      }
+      .pager .page-links .current {
+        background: var(--brand);
+        color: #fff;
+        border-color: var(--brand);
+      }
+      .checklist-filter {
+        min-width: 220px;
+        flex: 1;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #fbfdff;
+      }
+      .checklist-filter h4 {
+        margin: 0 0 10px;
+        font-size: 14px;
+      }
+      .checklist-filter .option-search {
+        margin-bottom: 10px;
+      }
+      .checklist-filter .option-list {
+        display: grid;
+        gap: 8px;
+        max-height: 180px;
+        overflow: auto;
+      }
+      .checklist-filter .option-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+      }
+      .checklist-filter .option-item input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+      }
+      .table-compact {
+        table-layout: fixed;
+      }
+      .table-compact th,
+      .table-compact td {
+        white-space: nowrap;
+      }
+      .ellipsis {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       .popup-tray {
         position: fixed;
         right: 18px;

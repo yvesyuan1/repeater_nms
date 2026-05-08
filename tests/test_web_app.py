@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from repeater_nms.collector.runtime import CollectorPipeline
 from repeater_nms.collector.schemas import PublishedTrapEvent
 from repeater_nms.db.init_db import initialize_database
 from repeater_nms.db.models import (
@@ -464,3 +466,121 @@ def test_template_crud_actions(tmp_path: Path) -> None:
         assert session.scalar(select(MibEnum).where(MibEnum.id == enum_id)) is None
         assert session.scalar(select(PollingStrategy).where(PollingStrategy.id == strategy_id)) is None
         assert session.scalar(select(AlarmRule).where(AlarmRule.id == rule_id)) is None
+
+
+def test_trap_page_supports_multi_filters_and_pagination(tmp_path: Path) -> None:
+    app, database_url = _build_app(tmp_path)
+    engine = create_engine(database_url)
+    with Session(engine) as session:
+        device = session.scalar(select(Device).where(Device.name == "RX10-WEB"))
+        assert device is not None
+        for index in range(2, 38):
+            session.add(
+                TrapEvent(
+                    device_id=device.id,
+                    pdu_id=f"web-pdu-{index}",
+                    source_ip=device.ip,
+                    source_port=162,
+                    local_ip="172.25.22.2",
+                    local_port=1162,
+                    snmp_version="v2c",
+                    community_masked="C**T",
+                    trap_oid="1.3.6.1.4.1.42669.1.1.0.1",
+                    trap_name="almchg",
+                    trap_type="alarm",
+                    sys_uptime="395525258",
+                    alarm_index=f"135463178.{index}",
+                    alarm_obj="xg.1.10",
+                    alarm_id="LOS",
+                    severity_code=5,
+                    severity="critical",
+                    status_code=43,
+                    status="report",
+                    device_alarm_time_raw="686523786",
+                    is_active_alarm=True,
+                    should_popup=True,
+                    raw_summary=f"almchg obj=xg.1.10 alarm=LOS #{index}",
+                    raw_json={"source_ip": device.ip},
+                    translated_json={"alarm_id": "LOS"},
+                    received_at=datetime(2026, 5, 8, 10, 8, 44, tzinfo=timezone.utc) + timedelta(seconds=index),
+                )
+            )
+        session.commit()
+
+    client = app.test_client()
+    _login(client)
+    response = client.get("/traps?severity=critical&trap_type=alarm&device_id=1&page=2")
+    text = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "上一页" in text
+    assert '<span class="current">2</span>' in text
+    assert 'value="critical"' in text
+
+
+def test_alarm_page_supports_pagination(tmp_path: Path) -> None:
+    app, database_url = _build_app(tmp_path)
+    engine = create_engine(database_url)
+    with Session(engine) as session:
+        device = session.scalar(select(Device).where(Device.name == "RX10-WEB"))
+        active_alarm = session.scalar(select(ActiveAlarm))
+        trap = session.scalar(select(TrapEvent))
+        assert device is not None and active_alarm is not None and trap is not None
+        for index in range(2, 38):
+            session.add(
+                AlarmEvent(
+                    active_alarm_id=active_alarm.id,
+                    trap_event_id=trap.id,
+                    device_id=device.id,
+                    alarm_obj="xg.1.10",
+                    alarm_id="LOS",
+                    severity_code=5,
+                    severity="critical",
+                    status_code=43,
+                    status="report",
+                    event_type="trap",
+                    message=f"alarm event #{index}",
+                    occurred_at=datetime(2026, 5, 8, 10, 8, 44, tzinfo=timezone.utc) + timedelta(seconds=index),
+                )
+            )
+        session.commit()
+
+    client = app.test_client()
+    _login(client)
+    response = client.get("/alarms?open_state=all&page=2")
+    text = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "上一页" in text
+    assert '<span class="current">2</span>' in text
+    assert "查看 Trap" in text
+
+
+def test_numeric_poll_judge_and_alarm_rule_override() -> None:
+    pipeline = CollectorPipeline("sqlite:///:memory:", "redis://127.0.0.1:6399/0", "test")
+    result = SimpleNamespace(poll_status="ok", value_raw="12", value_text="12", value_num=12.0)
+    strategy = SimpleNamespace(
+        judge_type="number_gt",
+        expected_values_json=["10"],
+        expected_value_text="10",
+        health_on_mismatch="major",
+    )
+    interpreted = pipeline._interpret_poll_result(resolver=None, result=result, node=None, strategy=strategy)
+    assert interpreted["health_status"] == "normal"
+
+    event = SimpleNamespace(
+        severity="critical",
+        status="report",
+        is_active_alarm=True,
+        should_popup=True,
+        extra={},
+    )
+    rule = AlarmRule(
+        profile_code="bohui_rx10",
+        alarm_id="LOS",
+        default_severity="critical",
+        should_create_active=False,
+        should_popup=False,
+        description="接口光信号丢失",
+    )
+    CollectorPipeline._apply_alarm_rule(event, rule)
+    assert event.is_active_alarm is False
+    assert event.should_popup is False

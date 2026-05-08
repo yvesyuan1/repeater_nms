@@ -18,6 +18,7 @@ from repeater_nms.db.base import utc_now
 from repeater_nms.db.models import (
     ActiveAlarm,
     AlarmEvent,
+    AlarmRule,
     Device,
     DeviceLatestValue,
     MibNode,
@@ -167,6 +168,15 @@ class CollectorPipeline:
             parsed = parser.parse_pdu(pdu)
             published_events: list[PublishedTrapEvent] = []
             device_name = "未知设备" if device is None else device.name
+            alarm_rules: dict[str, AlarmRule] = {}
+            if parsed.trap_type == "alarm":
+                alarm_rules = {
+                    item.alarm_id: item
+                    for item in session.execute(
+                        select(AlarmRule).where(AlarmRule.profile_code == profile_code)
+                    ).scalars().all()
+                    if item.alarm_id
+                }
 
             if parsed.parse_status != "parsed" or not parsed.events:
                 trap_event = TrapEvent(
@@ -202,6 +212,8 @@ class CollectorPipeline:
                 return []
 
             for event in parsed.events:
+                if parsed.trap_type == "alarm":
+                    self._apply_alarm_rule(event, alarm_rules.get(event.alarm_id or ""))
                 trap_event = TrapEvent(
                     device_id=None if device is None else device.id,
                     profile_code=profile_code,
@@ -525,7 +537,58 @@ class CollectorPipeline:
                     "critical": "严重告警",
                     "normal": "正常",
                 }.get(health_status, "未知")
-                health_reason = f"当前值 {display_value or result.value_raw or '-'} 未命中正常判断规则"
+                health_reason = f"当前值 {display_value or result.value_raw or '-'} 未命中枚举值判断规则"
+        elif strategy and strategy.judge_type == "value_equals":
+            expected_values = [str(item) for item in (strategy.expected_values_json or [])]
+            current_value = str(result.value_raw or result.value_text or display_value or "")
+            if current_value and current_value in expected_values:
+                health_status = "normal"
+                health_text = "正常"
+                health_reason = "命中原始值匹配规则"
+            else:
+                health_status = strategy.health_on_mismatch or "warning"
+                health_text = {
+                    "warning": "告警",
+                    "major": "主要告警",
+                    "critical": "严重告警",
+                    "normal": "正常",
+                }.get(health_status, "未知")
+                health_reason = f"当前值 {current_value or '-'} 未命中原始值匹配规则"
+        elif strategy and strategy.judge_type in {"number_gt", "number_gte", "number_lt", "number_lte", "number_between"}:
+            expected_numbers = self._parse_expected_numbers(strategy.expected_values_json, strategy.expected_value_text)
+            current_number = result.value_num
+            if current_number is None:
+                try:
+                    current_number = float(str(result.value_raw or result.value_text or "").strip())
+                except Exception:
+                    current_number = None
+            matched = False
+            if current_number is not None:
+                if strategy.judge_type == "number_gt" and len(expected_numbers) >= 1:
+                    matched = current_number > expected_numbers[0]
+                elif strategy.judge_type == "number_gte" and len(expected_numbers) >= 1:
+                    matched = current_number >= expected_numbers[0]
+                elif strategy.judge_type == "number_lt" and len(expected_numbers) >= 1:
+                    matched = current_number < expected_numbers[0]
+                elif strategy.judge_type == "number_lte" and len(expected_numbers) >= 1:
+                    matched = current_number <= expected_numbers[0]
+                elif strategy.judge_type == "number_between" and len(expected_numbers) >= 2:
+                    lower, upper = sorted(expected_numbers[:2])
+                    matched = lower <= current_number <= upper
+            if matched:
+                health_status = "normal"
+                health_text = "正常"
+                health_reason = "命中数值判断规则"
+            else:
+                health_status = strategy.health_on_mismatch or "warning"
+                health_text = {
+                    "warning": "告警",
+                    "major": "主要告警",
+                    "critical": "严重告警",
+                    "normal": "正常",
+                }.get(health_status, "未知")
+                expected_text = strategy.expected_value_text or ", ".join(str(item) for item in expected_numbers) or "-"
+                health_reason = f"当前值 {display_value or result.value_raw or '-'} 未命中数值判断规则 {expected_text}"
 
         return {
             "oid_name_zh": None if node is None else node.get("name_zh"),
@@ -537,6 +600,33 @@ class CollectorPipeline:
             "health_text": health_text,
             "health_reason": health_reason,
         }
+
+    @staticmethod
+    def _parse_expected_numbers(expected_values_json, expected_value_text: str | None) -> list[float]:
+        values: list[float] = []
+        raw_values = list(expected_values_json or [])
+        if not raw_values and expected_value_text:
+            raw_values = [item.strip() for item in expected_value_text.replace("，", ",").split(",") if item.strip()]
+        for item in raw_values:
+            try:
+                values.append(float(str(item).strip()))
+            except Exception:
+                continue
+        return values
+
+    @staticmethod
+    def _apply_alarm_rule(event: NormalizedTrapEvent, rule: AlarmRule | None) -> None:
+        if rule is None:
+            return
+        if not event.severity and rule.default_severity:
+            event.severity = rule.default_severity
+        if event.status in ACTIVE_ALARM_STATUSES and event.severity in ACTIVE_ALARM_SEVERITIES:
+            event.is_active_alarm = bool(rule.should_create_active)
+            event.should_popup = bool(rule.should_popup and event.severity in {"critical", "major"})
+        event.extra["rule_severity"] = rule.default_severity
+        event.extra["rule_should_create_active"] = rule.should_create_active
+        event.extra["rule_should_popup"] = rule.should_popup
+        event.extra["rule_description"] = rule.description
 
     def _apply_active_alarm(
         self,
@@ -553,7 +643,7 @@ class CollectorPipeline:
         dedupe_key = self._active_alarm_key(device_id, event.alarm_obj, event.alarm_id)
         active_alarm = session.execute(select(ActiveAlarm).where(ActiveAlarm.dedupe_key == dedupe_key)).scalar_one_or_none()
 
-        opens_alarm = bool(event.severity in ACTIVE_ALARM_SEVERITIES and event.status in ACTIVE_ALARM_STATUSES)
+        opens_alarm = bool(event.is_active_alarm and event.status in ACTIVE_ALARM_STATUSES)
         closes_alarm = bool(event.status == "close" or event.severity == "cleared")
 
         if active_alarm is None and not opens_alarm:
