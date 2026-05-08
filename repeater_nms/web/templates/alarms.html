@@ -34,8 +34,8 @@
     <label style="min-width:180px;">
       <div class="muted">当前状态</div>
       <select name="open_state">
-        <option value="">全部</option>
         <option value="open" {% if filters.open_state == 'open' %}selected{% endif %}>仅活动中</option>
+        <option value="all" {% if filters.open_state == 'all' %}selected{% endif %}>全部</option>
         <option value="closed" {% if filters.open_state == 'closed' %}selected{% endif %}>仅已关闭</option>
       </select>
     </label>
@@ -58,7 +58,7 @@
     </label>
     <label style="min-width:220px;flex:1;">
       <div class="muted">关键字</div>
-      <input type="text" name="keyword" value="{{ filters.keyword }}" placeholder="对象 / 告警ID / 消息 / 备注">
+      <input type="text" name="keyword" value="{{ filters.keyword }}" placeholder="对象 / 告警ID / 中文说明 / 摘要 / 备注">
     </label>
     <label style="min-width:180px;">
       <div class="muted">开始时间</div>
@@ -84,7 +84,7 @@
         <th>确认状态</th>
         <th>次数</th>
         <th>备注</th>
-        <th>消息</th>
+        <th>事件摘要</th>
         <th>操作</th>
       </tr>
     </thead>
@@ -96,7 +96,12 @@
           <td>{{ event.occurred_at|dt }}</td>
           <td>{{ row.device_name }}</td>
           <td>{{ event.alarm_obj or '-' }}</td>
-          <td>{{ event.alarm_id or '-' }}</td>
+          <td>
+            <div>{{ event.alarm_id or '-' }}</div>
+            {% if row.alarm_description and row.alarm_description != event.alarm_id %}
+              <div class="muted" style="margin-top:4px;">{{ row.alarm_description }}</div>
+            {% endif %}
+          </td>
           <td><span class="tag {{ event.severity or '' }}">{{ row.severity_label }}</span></td>
           <td><span class="tag {{ event.status or '' }}">{{ row.status_label }}</span></td>
           <td><span class="tag {{ 'ok' if active_alarm and active_alarm.is_open else 'close' }}">{{ row.active_state_label }}</span></td>

@@ -120,7 +120,7 @@
       }
       form.inline { display: inline; }
       input, select, textarea, button { font: inherit; }
-      input, select, textarea {
+      input:not([type="checkbox"]):not([type="radio"]), select, textarea {
         width: 100%;
         padding: 10px 12px;
         border: 1px solid var(--line);
@@ -151,6 +151,20 @@
         gap: 14px;
       }
       .form-grid .full { grid-column: 1 / -1; }
+      .checkbox-field {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+        padding-top: 24px;
+        white-space: nowrap;
+      }
+      .checkbox-field input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        margin: 0;
+        flex: 0 0 auto;
+      }
       table {
         width: 100%;
         border-collapse: collapse;

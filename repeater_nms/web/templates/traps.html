@@ -31,6 +31,7 @@
       <div class="muted" id="sse-status" style="margin-left:auto;align-self:end;">实时通道：连接中</div>
     </form>
   </div>
+
   <table id="trap-table">
     <thead>
       <tr>
@@ -57,7 +58,12 @@
           <td>{{ item.trap_name_label or item.trap_type_label }}</td>
           <td><span class="tag {{ item.severity or '' }}">{{ item.severity_label }}</span></td>
           <td>{{ item.alarm_obj or '-' }}</td>
-          <td>{{ item.alarm_id or '-' }}</td>
+          <td>
+            <div>{{ item.alarm_id or '-' }}</div>
+            {% if item.alarm_description and item.alarm_description != item.alarm_id %}
+              <div class="muted" style="margin-top:4px;">{{ item.alarm_description }}</div>
+            {% endif %}
+          </td>
           <td><span class="tag {{ item.status or '' }}">{{ item.status_label }}</span></td>
           <td>{{ item.device_alarm_time_raw or '-' }}</td>
           <td>{{ item.pdu_id or '-' }}</td>
@@ -69,12 +75,34 @@
       {% endfor %}
     </tbody>
   </table>
+
   <script>
     const trapBody = document.getElementById("trap-body");
     const sseStatus = document.getElementById("sse-status");
     const filterSeverity = "{{ filter_severity }}";
     const filterDeviceId = "{{ filter_device_id }}";
     const filterKeyword = "{{ filter_keyword }}".trim().toLowerCase();
+    const severityLabels = {
+      critical: "严重",
+      major: "主要",
+      minor: "次要",
+      warning: "告警",
+      indeterminate: "不确定",
+      cleared: "已清除"
+    };
+    const statusLabels = {
+      report: "上报",
+      change: "变化",
+      close: "关闭"
+    };
+    const trapNameLabels = {
+      almchg: "告警变更",
+      performance: "性能上报"
+    };
+    const trapTypeLabels = {
+      alarm: "告警 Trap",
+      performance: "性能 Trap"
+    };
 
     function passesFilter(payload) {
       if (filterSeverity && payload.severity !== filterSeverity) return false;
@@ -83,6 +111,7 @@
         const haystack = [
           payload.alarm_obj || "",
           payload.alarm_id || "",
+          payload.alarm_description || "",
           payload.source_ip || "",
           payload.pdu_id || "",
           payload.summary_zh || "",
@@ -97,22 +126,39 @@
       return value || "-";
     }
 
+    function buildSummary(payload) {
+      if (payload.summary_zh) return payload.summary_zh;
+      const parts = [];
+      const trapLabel = payload.trap_name_label || trapNameLabels[payload.trap_name] || payload.trap_type_label || trapTypeLabels[payload.trap_type] || "Trap";
+      parts.push(`${trapLabel}：设备 ${payload.device_name || "未知设备"}`);
+      if (payload.alarm_obj) parts.push(`对象 ${payload.alarm_obj}`);
+      if (payload.alarm_id) parts.push(`告警 ${payload.alarm_id}`);
+      if (payload.alarm_description && payload.alarm_description !== payload.alarm_id) parts.push(`说明 ${payload.alarm_description}`);
+      if (payload.severity) parts.push(`级别 ${payload.severity_label || severityLabels[payload.severity] || payload.severity}`);
+      if (payload.status) parts.push(`状态 ${payload.status_label || statusLabels[payload.status] || payload.status}`);
+      return parts.join("，");
+    }
+
     function prependRow(payload) {
       if (!passesFilter(payload)) return;
+      const detailId = payload.id || payload.trap_event_id;
       const row = document.createElement("tr");
       row.innerHTML = `
-        <td>${renderCell(payload.received_at)}</td>
+        <td>${renderCell(payload.received_at_display || payload.received_at)}</td>
         <td>${renderCell(payload.source_ip)}</td>
         <td>${renderCell(payload.device_name)}</td>
-        <td>${renderCell(payload.trap_name_label || payload.trap_type_label)}</td>
-        <td><span class="tag ${payload.severity || ""}">${renderCell(payload.severity_label)}</span></td>
+        <td>${renderCell(payload.trap_name_label || trapNameLabels[payload.trap_name] || payload.trap_type_label || trapTypeLabels[payload.trap_type])}</td>
+        <td><span class="tag ${payload.severity || ""}">${renderCell(payload.severity_label || severityLabels[payload.severity])}</span></td>
         <td>${renderCell(payload.alarm_obj)}</td>
-        <td>${renderCell(payload.alarm_id)}</td>
-        <td><span class="tag ${payload.status || ""}">${renderCell(payload.status_label)}</span></td>
+        <td>
+          <div>${renderCell(payload.alarm_id)}</div>
+          ${payload.alarm_description && payload.alarm_description !== payload.alarm_id ? `<div class="muted" style="margin-top:4px;">${payload.alarm_description}</div>` : ""}
+        </td>
+        <td><span class="tag ${payload.status || ""}">${renderCell(payload.status_label || statusLabels[payload.status])}</span></td>
         <td>${renderCell(payload.device_alarm_time_raw)}</td>
         <td>${renderCell(payload.pdu_id)}</td>
-        <td>${renderCell(payload.summary_zh)}</td>
-        <td><a class="button secondary" href="/traps/${payload.id}">查看详情</a></td>
+        <td>${renderCell(buildSummary(payload))}</td>
+        <td>${detailId ? `<a class="button secondary" href="/traps/${detailId}">查看详情</a>` : "-"}</td>
       `;
       const emptyRow = trapBody.querySelector("tr td[colspan='12']");
       if (emptyRow) {

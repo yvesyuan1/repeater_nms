@@ -32,6 +32,111 @@ from repeater_nms.db.session import session_scope
 
 LOGGER = logging.getLogger("repeater_nms.collector.runtime")
 
+PUBLISHED_SEVERITY_LABELS = {
+    "critical": "严重",
+    "major": "主要",
+    "minor": "次要",
+    "warning": "告警",
+    "indeterminate": "不确定",
+    "cleared": "已清除",
+}
+
+PUBLISHED_STATUS_LABELS = {
+    "report": "上报",
+    "change": "变化",
+    "close": "关闭",
+}
+
+PUBLISHED_TRAP_NAME_LABELS = {
+    "almchg": "告警变更",
+    "performance": "性能上报",
+}
+
+PUBLISHED_TRAP_TYPE_LABELS = {
+    "alarm": "告警 Trap",
+    "performance": "性能 Trap",
+}
+
+PUBLISHED_ALARM_ID_LABELS = {
+    "Power1_Fail": "第一路电源故障",
+    "Power2_Fail": "第二路电源故障",
+    "HighTemp": "设备高温",
+    "LowTemp": "设备低温",
+    "PKG_FAIL": "硬件故障",
+    "LOS": "接口光信号丢失",
+    "LsrOffline": "光模块离线",
+    "HighSysMem": "内存使用率高",
+    "HighRootfs": "系统分区使用率高",
+    "HighAppdisk": "用户分区使用率高",
+    "PKG_NOTREADY": "软件启动未完成",
+    "FAN1_FAIL": "风扇1故障",
+    "FAN2_FAIL": "风扇2故障",
+    "FAN3_FAIL": "风扇3故障",
+    "FAN4_FAIL": "风扇4故障",
+}
+
+PUBLISHED_TREND_METRIC_LABELS = {
+    "LB": "激光器偏置电流",
+    "LT": "激光器温度",
+    "IOP": "激光器输入光功率",
+    "OOP": "激光器输出光功率",
+    "RAM": "内存利用率",
+    "CPU": "CPU利用率",
+}
+
+
+def _label(mapping: dict[str, str], value: str | None, default: str = "-") -> str:
+    if not value:
+        return default
+    return mapping.get(value, value)
+
+
+def _alarm_description(alarm_id: str | None) -> str | None:
+    if not alarm_id:
+        return None
+    if alarm_id in PUBLISHED_ALARM_ID_LABELS:
+        return PUBLISHED_ALARM_ID_LABELS[alarm_id]
+    parts = alarm_id.split("_")
+    if len(parts) == 2 and parts[0] in PUBLISHED_TREND_METRIC_LABELS and len(parts[1]) == 3:
+        window_code = parts[1][:2]
+        level_code = parts[1][2:]
+        window_text = {"15": "15分钟", "24": "24小时"}.get(window_code)
+        level_text = {"L": "低于阈值", "H": "高于阈值"}.get(level_code)
+        metric_text = PUBLISHED_TREND_METRIC_LABELS.get(parts[0])
+        if window_text and level_text and metric_text:
+            return f"{window_text}{metric_text}{level_text}"
+    return alarm_id
+
+
+def _build_published_summary(
+    *,
+    device_name: str,
+    trap_name: str | None,
+    trap_type: str | None,
+    alarm_obj: str | None,
+    alarm_id: str | None,
+    severity: str | None,
+    status: str | None,
+) -> str:
+    summary_parts: list[str] = []
+    if alarm_id or alarm_obj:
+        summary_parts.append(f"{_label(PUBLISHED_TRAP_NAME_LABELS, trap_name)}：设备 {device_name}")
+        if alarm_obj:
+            summary_parts.append(f"对象 {alarm_obj}")
+        if alarm_id:
+            summary_parts.append(f"告警 {alarm_id}")
+            description = _alarm_description(alarm_id)
+            if description and description != alarm_id:
+                summary_parts.append(f"说明 {description}")
+        if severity:
+            summary_parts.append(f"级别 {_label(PUBLISHED_SEVERITY_LABELS, severity)}")
+        if status:
+            summary_parts.append(f"状态 {_label(PUBLISHED_STATUS_LABELS, status)}")
+        return "，".join(summary_parts)
+    if trap_name or trap_type:
+        return f"{_label(PUBLISHED_TRAP_NAME_LABELS, trap_name, _label(PUBLISHED_TRAP_TYPE_LABELS, trap_type))}：设备 {device_name}"
+    return "-"
+
 
 class CollectorPipeline:
     def __init__(
@@ -160,17 +265,31 @@ class CollectorPipeline:
                     trap_event_id=trap_event.id,
                     pdu_id=trap_event.pdu_id,
                     received_at=trap_event.received_at.astimezone(timezone.utc).isoformat(),
+                    received_at_display=trap_event.received_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
                     source_ip=trap_event.source_ip,
                     device_id=trap_event.device_id,
                     device_name=device_name,
                     trap_type=trap_event.trap_type,
+                    trap_type_label=_label(PUBLISHED_TRAP_TYPE_LABELS, trap_event.trap_type),
                     trap_name=trap_event.trap_name,
+                    trap_name_label=_label(PUBLISHED_TRAP_NAME_LABELS, trap_event.trap_name),
                     alarm_obj=trap_event.alarm_obj,
                     alarm_id=trap_event.alarm_id,
                     severity=trap_event.severity,
+                    severity_label=_label(PUBLISHED_SEVERITY_LABELS, trap_event.severity),
                     status=trap_event.status,
+                    status_label=_label(PUBLISHED_STATUS_LABELS, trap_event.status),
                     device_alarm_time_raw=trap_event.device_alarm_time_raw,
                     raw_summary=trap_event.raw_summary,
+                    summary_zh=_build_published_summary(
+                        device_name=device_name,
+                        trap_name=trap_event.trap_name,
+                        trap_type=trap_event.trap_type,
+                        alarm_obj=trap_event.alarm_obj,
+                        alarm_id=trap_event.alarm_id,
+                        severity=trap_event.severity,
+                        status=trap_event.status,
+                    ),
                     translated_json=trap_event.translated_json,
                 )
                 published_events.append(published)

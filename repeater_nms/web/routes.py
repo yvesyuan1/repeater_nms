@@ -44,6 +44,7 @@ from repeater_nms.web.db import get_db_session
 from repeater_nms.web.extensions import login_manager
 from repeater_nms.web.security import role_required
 from repeater_nms.web.utils import (
+    alarm_description_label,
     build_captcha_svg,
     build_trap_summary,
     compute_device_overview_status,
@@ -218,6 +219,7 @@ def _alarm_rule_from_form(rule: AlarmRule) -> None:
 
 def _trap_payload(item: TrapEvent, device: Device | None, profile: DeviceProfile | None) -> dict[str, Any]:
     device_name = device.name if device else "未知设备"
+    alarm_description = alarm_description_label(item.alarm_id)
     summary_zh = build_trap_summary(
         device_name=device_name,
         trap_name=item.trap_name,
@@ -227,12 +229,17 @@ def _trap_payload(item: TrapEvent, device: Device | None, profile: DeviceProfile
         severity=item.severity,
         status=item.status,
         raw_summary=item.raw_summary,
+        alarm_description=alarm_description,
     )
     return {
         "id": item.id,
         "pdu_id": item.pdu_id,
         "received_at": format_dt(item.received_at),
-        "received_at_iso": item.received_at.astimezone(timezone.utc).isoformat() if item.received_at else None,
+        "received_at_iso": (
+            item.received_at.isoformat()
+            if item.received_at and item.received_at.tzinfo is None
+            else (item.received_at.astimezone(timezone.utc).isoformat() if item.received_at else None)
+        ),
         "source_ip": item.source_ip,
         "device_id": item.device_id,
         "device_name": device_name,
@@ -243,6 +250,7 @@ def _trap_payload(item: TrapEvent, device: Device | None, profile: DeviceProfile
         "trap_name_label": trap_name_label(item.trap_name),
         "alarm_obj": item.alarm_obj,
         "alarm_id": item.alarm_id,
+        "alarm_description": alarm_description,
         "severity": item.severity,
         "severity_label": severity_label(item.severity),
         "status": item.status,
@@ -1339,7 +1347,7 @@ def alarms():
     device_id = request.args.get("device_id", "").strip()
     severity = request.args.get("severity", "").strip()
     ack_state = request.args.get("ack_state", "").strip()
-    open_state = request.args.get("open_state", "").strip()
+    open_state = request.args.get("open_state", "open").strip() or "open"
     history_status = request.args.get("history_status", "").strip()
     keyword = request.args.get("keyword", "").strip()
     start_at = request.args.get("start_at", "").strip()
@@ -1349,16 +1357,40 @@ def alarms():
     active_map = {item.id: item for item in session.execute(select(ActiveAlarm)).scalars().all()}
     devices = session.execute(select(Device).order_by(Device.name.asc())).scalars().all()
     device_names = {item.id: item.name for item in devices}
+    trap_ids = {item.trap_event_id for item in events if item.trap_event_id}
+    trap_map = {}
+    if trap_ids:
+        trap_map = {
+            item.id: item
+            for item in session.execute(select(TrapEvent).where(TrapEvent.id.in_(trap_ids))).scalars().all()
+        }
+    profile_codes = {item.profile_code or DEFAULT_PROFILE_CODE for item in trap_map.values()}
+    rule_map = {}
+    if profile_codes:
+        rule_map = {
+            (item.profile_code, item.alarm_id): item
+            for item in session.execute(select(AlarmRule).where(AlarmRule.profile_code.in_(profile_codes))).scalars().all()
+        }
 
     start_dt = parse_local_datetime(start_at)
     end_dt = parse_local_datetime(end_at, end_of_day=True)
     rows: list[dict[str, Any]] = []
     for item in events:
         active_alarm = active_map.get(item.active_alarm_id) if item.active_alarm_id else None
+        trap_event = trap_map.get(item.trap_event_id) if item.trap_event_id else None
+        profile_code = trap_event.profile_code if trap_event and trap_event.profile_code else DEFAULT_PROFILE_CODE
+        rule = rule_map.get((profile_code, item.alarm_id or ""))
+        alarm_description = (
+            rule.description
+            if rule and rule.description and rule.description != (item.alarm_id or "")
+            else alarm_description_label(item.alarm_id)
+        )
         row = {
             "event": item,
             "active_alarm": active_alarm,
+            "trap_event": trap_event,
             "device_name": device_names.get(item.device_id, "未知设备"),
+            "alarm_description": alarm_description,
             "severity_label": severity_label(item.severity),
             "status_label": status_label(item.status),
             "active_state_label": "活动中" if active_alarm and active_alarm.is_open else "已关闭",
@@ -1372,7 +1404,7 @@ def alarms():
             continue
         if ack_state == "ack" and not (active_alarm and active_alarm.is_acknowledged):
             continue
-        if ack_state == "unack" and active_alarm and active_alarm.is_acknowledged:
+        if ack_state == "unack" and not (active_alarm and not active_alarm.is_acknowledged):
             continue
         if open_state == "open" and not (active_alarm and active_alarm.is_open):
             continue
@@ -1389,6 +1421,7 @@ def alarms():
                     [
                         item.alarm_obj,
                         item.alarm_id,
+                        alarm_description,
                         item.message,
                         None if active_alarm is None else active_alarm.notes,
                     ],

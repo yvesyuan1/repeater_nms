@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -83,6 +84,43 @@ TRAP_TYPE_LABELS = {
     "performance": "性能 Trap",
 }
 
+ALARM_ID_LABELS = {
+    "Power1_Fail": "第一路电源故障",
+    "Power2_Fail": "第二路电源故障",
+    "HighTemp": "设备高温",
+    "LowTemp": "设备低温",
+    "PKG_FAIL": "硬件故障",
+    "LOS": "接口光信号丢失",
+    "LsrOffline": "光模块离线",
+    "HighSysMem": "内存使用率高",
+    "HighRootfs": "系统分区使用率高",
+    "HighAppdisk": "用户分区使用率高",
+    "PKG_NOTREADY": "软件启动未完成",
+    "FAN1_FAIL": "风扇1故障",
+    "FAN2_FAIL": "风扇2故障",
+    "FAN3_FAIL": "风扇3故障",
+    "FAN4_FAIL": "风扇4故障",
+}
+
+TREND_ALARM_METRIC_LABELS = {
+    "LB": "激光器偏置电流",
+    "LT": "激光器温度",
+    "IOP": "激光器输入光功率",
+    "OOP": "激光器输出光功率",
+    "RAM": "内存利用率",
+    "CPU": "CPU利用率",
+}
+
+TREND_ALARM_WINDOW_LABELS = {
+    "15": "15分钟",
+    "24": "24小时",
+}
+
+TREND_ALARM_LEVEL_LABELS = {
+    "L": "低于阈值",
+    "H": "高于阈值",
+}
+
 
 def app_timezone():
     tz_name = None
@@ -98,8 +136,8 @@ def format_dt(value: datetime | None) -> str:
     if value is None:
         return "-"
     if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
-    return value.astimezone(app_timezone()).strftime("%Y-%m-%d %H:%M:%S")
+        return value.strftime("%Y-%m-%d %H:%M:%S")
+    return value.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def mask_secret(value: str | None) -> str:
@@ -171,6 +209,21 @@ def profile_title(vendor: str | None, model: str | None) -> str:
     return vendor or model or "-"
 
 
+def alarm_description_label(alarm_id: str | None) -> str:
+    if not alarm_id:
+        return "-"
+    if alarm_id in ALARM_ID_LABELS:
+        return ALARM_ID_LABELS[alarm_id]
+    match = re.fullmatch(r"(LB|LT|IOP|OOP|RAM|CPU)_(15|24)(L|H)", alarm_id)
+    if not match:
+        return alarm_id
+    metric_code, window_code, level_code = match.groups()
+    metric_text = TREND_ALARM_METRIC_LABELS.get(metric_code, metric_code)
+    window_text = TREND_ALARM_WINDOW_LABELS.get(window_code, window_code)
+    level_text = TREND_ALARM_LEVEL_LABELS.get(level_code, level_code)
+    return f"{window_text}{metric_text}{level_text}"
+
+
 def highest_severity(values: list[str]) -> str | None:
     order = {"critical": 5, "major": 4, "warning": 3, "minor": 2, "indeterminate": 1, "cleared": 0}
     ranked = sorted((value for value in values if value), key=lambda item: order.get(item, -1), reverse=True)
@@ -210,6 +263,7 @@ def build_trap_summary(
     severity: str | None,
     status: str | None,
     raw_summary: str | None,
+    alarm_description: str | None = None,
 ) -> str:
     summary_parts: list[str] = []
     if alarm_id or alarm_obj:
@@ -218,12 +272,17 @@ def build_trap_summary(
             summary_parts.append(f"对象 {alarm_obj}")
         if alarm_id:
             summary_parts.append(f"告警 {alarm_id}")
+            alarm_desc = alarm_description or alarm_description_label(alarm_id)
+            if alarm_desc and alarm_desc != alarm_id:
+                summary_parts.append(f"说明 {alarm_desc}")
         if severity:
             summary_parts.append(f"级别 {severity_label(severity)}")
         if status:
             summary_parts.append(f"状态 {status_label(status)}")
     elif trap_name or trap_type:
-        summary_parts.append(f"{trap_name_label(trap_name) if trap_name else trap_type_label(trap_type)}：设备 {device_name_label(device_name)}")
+        summary_parts.append(
+            f"{trap_name_label(trap_name) if trap_name else trap_type_label(trap_type)}：设备 {device_name_label(device_name)}"
+        )
     if summary_parts:
         return "，".join(summary_parts)
     return raw_summary or "-"
@@ -268,7 +327,7 @@ def parse_local_datetime(value: str | None, *, end_of_day: bool = False) -> date
         return None
     parsed = datetime.fromisoformat(value)
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=app_timezone())
+        parsed = parsed.replace(tzinfo=timezone.utc)
     if end_of_day and parsed.hour == 0 and parsed.minute == 0 and parsed.second == 0:
         parsed = parsed + timedelta(days=1)
     return parsed.astimezone(timezone.utc)

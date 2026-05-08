@@ -6,6 +6,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from repeater_nms.collector.schemas import PublishedTrapEvent
 from repeater_nms.db.init_db import initialize_database
 from repeater_nms.db.models import (
     ActiveAlarm,
@@ -22,6 +23,7 @@ from repeater_nms.db.models import (
 )
 from repeater_nms.db.session import reset_engine_cache, session_scope
 from repeater_nms.web import create_app
+from repeater_nms.web.utils import alarm_description_label, format_dt
 
 
 def _build_app(tmp_path: Path):
@@ -70,7 +72,7 @@ def _build_app(tmp_path: Path):
             raw_summary="almchg obj=xg.1.10 alarm=LOS",
             raw_json={"source_ip": device.ip},
             translated_json={"alarm_id": "LOS"},
-            received_at=datetime.now(timezone.utc),
+            received_at=datetime(2026, 5, 8, 10, 8, 44, tzinfo=timezone.utc),
         )
         session.add(trap)
         session.flush()
@@ -103,7 +105,7 @@ def _build_app(tmp_path: Path):
                 status="report",
                 event_type="trap",
                 message="almchg obj=xg.1.10 alarm=LOS",
-                occurred_at=datetime.now(timezone.utc),
+                occurred_at=datetime(2026, 5, 8, 10, 8, 44, tzinfo=timezone.utc),
             )
         )
         session.add(
@@ -148,11 +150,21 @@ def test_login_and_main_pages(tmp_path: Path) -> None:
 
     response = _login(client)
     assert response.status_code == 200
-    assert "活动告警数".encode("utf-8") in response.data
+    assert b"RX10-WEB" in response.data
 
-    for path in ["/devices", "/mib-nodes", "/traps", "/alarms", "/logs"]:
+    for path in ["/devices", "/mib-nodes", "/traps", "/alarms", "/logs", "/traps/1"]:
         page = client.get(path)
         assert page.status_code == 200
+
+
+def test_alarm_page_contains_chinese_description(tmp_path: Path) -> None:
+    app, _database_url = _build_app(tmp_path)
+    client = app.test_client()
+    _login(client)
+
+    response = client.get("/alarms")
+    assert response.status_code == 200
+    assert "接口光信号丢失".encode("utf-8") in response.data
 
 
 def test_device_and_popup_actions(tmp_path: Path) -> None:
@@ -209,6 +221,42 @@ def test_sse_endpoint_headers(tmp_path: Path) -> None:
     assert b"retry:" in first_chunk
 
 
+def test_published_trap_event_payload_has_detail_fields() -> None:
+    payload = PublishedTrapEvent(
+        trap_event_id=12,
+        pdu_id="pdu-1",
+        received_at="2026-05-08T10:08:44+00:00",
+        received_at_display="2026-05-08 10:08:44",
+        source_ip="172.25.22.6",
+        device_id=1,
+        device_name="RX10-WEB",
+        trap_type="alarm",
+        trap_type_label="告警 Trap",
+        trap_name="almchg",
+        trap_name_label="告警变更",
+        alarm_obj="xg.1.10",
+        alarm_id="LOS",
+        severity="critical",
+        severity_label="严重",
+        status="report",
+        status_label="上报",
+        device_alarm_time_raw="686523786",
+        raw_summary="almchg obj=xg.1.10 alarm=LOS",
+        summary_zh="告警变更：设备 RX10-WEB，对象 xg.1.10，告警 LOS",
+        translated_json={"alarm_id": "LOS"},
+    ).to_dict()
+
+    assert payload["id"] == 12
+    assert payload["received_at_display"] == "2026-05-08 10:08:44"
+    assert payload["summary_zh"]
+
+
+def test_format_and_alarm_description_helpers() -> None:
+    assert format_dt(datetime(2026, 5, 8, 10, 8, 44, tzinfo=timezone.utc)) == "2026-05-08 10:08:44"
+    assert alarm_description_label("LOS") == "接口光信号丢失"
+    assert alarm_description_label("CPU_24H") == "24小时CPU利用率高于阈值"
+
+
 def test_template_crud_actions(tmp_path: Path) -> None:
     app, database_url = _build_app(tmp_path)
     client = app.test_client()
@@ -227,7 +275,7 @@ def test_template_crud_actions(tmp_path: Path) -> None:
         follow_redirects=True,
     )
     assert create_profile.status_code == 200
-    assert "custom_demo".encode("utf-8") in create_profile.data
+    assert b"custom_demo" in create_profile.data
 
     create_node = client.post(
         "/mib-nodes/nodes",
@@ -305,7 +353,9 @@ def test_template_crud_actions(tmp_path: Path) -> None:
         profile = session.scalar(select(DeviceProfile).where(DeviceProfile.profile_code == "custom_demo"))
         node = session.scalar(select(MibNode).where(MibNode.profile_code == "custom_demo", MibNode.name == "demoNode"))
         enum_item = session.scalar(select(MibEnum).where(MibEnum.profile_code == "custom_demo", MibEnum.enum_name == "DEMO_ENUM"))
-        strategy = session.scalar(select(PollingStrategy).where(PollingStrategy.profile_code == "custom_demo", PollingStrategy.node_name == "demoNode"))
+        strategy = session.scalar(
+            select(PollingStrategy).where(PollingStrategy.profile_code == "custom_demo", PollingStrategy.node_name == "demoNode")
+        )
         rule = session.scalar(select(AlarmRule).where(AlarmRule.profile_code == "custom_demo", AlarmRule.alarm_id == "DEMO_ALARM"))
         assert profile is not None
         assert node is not None

@@ -125,35 +125,48 @@ class PublishedTrapEvent:
     trap_event_id: int
     pdu_id: str | None
     received_at: str
+    received_at_display: str | None
     source_ip: str
     device_id: int | None
     device_name: str
     trap_type: str | None
+    trap_type_label: str | None
     trap_name: str | None
+    trap_name_label: str | None
     alarm_obj: str | None
     alarm_id: str | None
     severity: str | None
+    severity_label: str | None
     status: str | None
+    status_label: str | None
     device_alarm_time_raw: str | None
     raw_summary: str | None
+    summary_zh: str | None
     translated_json: dict[str, Any] | list[Any] | None
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "id": self.trap_event_id,
             "trap_event_id": self.trap_event_id,
             "pdu_id": self.pdu_id,
             "received_at": self.received_at,
+            "received_at_display": self.received_at_display,
             "source_ip": self.source_ip,
             "device_id": self.device_id,
             "device_name": self.device_name,
             "trap_type": self.trap_type,
+            "trap_type_label": self.trap_type_label,
             "trap_name": self.trap_name,
+            "trap_name_label": self.trap_name_label,
             "alarm_obj": self.alarm_obj,
             "alarm_id": self.alarm_id,
             "severity": self.severity,
+            "severity_label": self.severity_label,
             "status": self.status,
+            "status_label": self.status_label,
             "device_alarm_time_raw": self.device_alarm_time_raw,
             "raw_summary": self.raw_summary,
+            "summary_zh": self.summary_zh,
             "translated_json": self.translated_json,
         }
 
@@ -184,4 +197,3 @@ class PollResult:
     value_text: str | None = None
     value_num: float | None = None
     error_message: str | None = None
-
