@@ -1,0 +1,17 @@
+[Unit]
+Description=repeater-nms web
+After=network.target redis.service mysql.service
+Wants=redis.service mysql.service
+
+[Service]
+Type=simple
+User=jkxz
+Group=jkxz
+WorkingDirectory=/home/jkxz/yves-admin
+ExecStart=/bin/bash -lc 'set -a; source /home/jkxz/yves-admin/.env; exec /home/jkxz/yves-admin/.venv/bin/gunicorn -w 2 -b 127.0.0.1:5000 wsgi:app'
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

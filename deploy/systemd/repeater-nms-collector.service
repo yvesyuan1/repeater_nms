@@ -1,0 +1,17 @@
+[Unit]
+Description=repeater-nms collector
+After=network.target redis.service mysql.service
+Wants=redis.service mysql.service
+
+[Service]
+Type=simple
+User=jkxz
+Group=jkxz
+WorkingDirectory=/home/jkxz/yves-admin
+ExecStart=/bin/bash -lc 'set -a; source /home/jkxz/yves-admin/.env; exec /home/jkxz/yves-admin/.venv/bin/python -m repeater_nms.collector run'
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

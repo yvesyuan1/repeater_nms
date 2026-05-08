@@ -3,70 +3,145 @@
 ## 本地开发方式
 
 - 本地目录：`F:\codeXSpace\repeater_nms`
-- 推荐使用 Python 3.12 虚拟环境
-- 本地调试可使用 `.env.example` 复制为临时 `.env`，但不要提交到 Git
-- 开发期 Web 默认运行在 `127.0.0.1:5000`
-- collector 开发期可先跑骨架和离线解析测试，不依赖真实设备
+- 推荐 Python 3.12 虚拟环境
+- 开发 Web：
+  - `python -m flask --app wsgi run --debug`
+- 启动 collector：
+  - `python -m repeater_nms.collector`
+- 初始化数据库：
+  - `python -m flask --app wsgi init-db`
+- 运行测试：
+  - `python -m pytest`
 
-## 本地试运行
+## 本地试运行方式
 
-- 直接运行：`powershell -ExecutionPolicy Bypass -File .\scripts\run_local_trial.ps1`
-- 默认使用 SQLite：`local_trial.sqlite`
-- 默认登录账号：`admin`
-- 默认密码：脚本内默认 `admin123`，可通过环境变量 `ADMIN_PASSWORD` 覆盖
-- 预置设备：`172.25.22.6`
-- 预置一条 critical Trap 和一条活动告警，便于直接查看页面
+- 试运行脚本：
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\run_local_trial.ps1`
+- 本地试运行默认使用 SQLite
+- 默认地址：
+  - `http://127.0.0.1:5000`
 
 ## 服务器部署方式
 
-- 服务器通过 `ssh WYJ-2` 访问
-- 部署目录固定为 `/home/jkxz/yves-admin`
-- 优先在本地准备项目文件，再通过 `scp` 或 `rsync` 同步到远端
-- 远端真实 `.env` 只放在 `/home/jkxz/yves-admin/.env`
-- 远端 Python 运行在独立 `venv` 中
+- 服务器别名：`WYJ-2`
+- 部署目录：`/home/jkxz/yves-admin`
+- 同步方式：优先在本地准备代码，再通过 `scp` 或等价方式同步
+- 生产环境真实 `.env` 只允许放在：
+  - `/home/jkxz/yves-admin/.env`
+
+推荐顺序：
+
+1. 同步代码到 `/home/jkxz/yves-admin`
+2. 创建虚拟环境并安装依赖
+3. 写入服务器 `.env`
+4. 初始化数据库
+5. 安装 systemd 服务文件
+6. 安装 Nginx 站点配置
+7. 执行 `nginx -t`
+8. 启动并检查 Web、collector、Nginx
+
+## 当前服务器试运行结果
+
+- 服务器访问地址：
+  - `http://172.25.22.2:10099`
+- Gunicorn：
+  - `127.0.0.1:5000`
+- Collector：
+  - `0.0.0.0:1162/udp`
+- Redis：
+  - `127.0.0.1:6379`
+- MySQL：
+  - `127.0.0.1:3306`
 
 ## systemd
 
-计划提供两个服务：
+已生成并使用以下服务文件：
 
-- `repeater-nms-web.service`
-- `repeater-nms-collector.service`
+- `deploy/systemd/repeater-nms-web.service`
+- `deploy/systemd/repeater-nms-collector.service`
 
-原则：
+安装位置：
 
-- Web 服务通过 Gunicorn 监听 `127.0.0.1:5000`
-- collector 必须保持单实例，监听 `0.0.0.0:1162/udp`
-- 服务文件放在 `/etc/systemd/system/`
-- 修改后执行 `systemctl daemon-reload`
+- `/etc/systemd/system/repeater-nms-web.service`
+- `/etc/systemd/system/repeater-nms-collector.service`
+
+常用命令：
+
+- `sudo systemctl daemon-reload`
+- `sudo systemctl enable --now repeater-nms-web repeater-nms-collector`
+- `sudo systemctl status repeater-nms-web repeater-nms-collector --no-pager`
+- `journalctl -u repeater-nms-web -n 100 --no-pager`
+- `journalctl -u repeater-nms-collector -n 100 --no-pager`
 
 ## Nginx
 
-- 新增站点配置文件 `/etc/nginx/sites-available/repeater-nms`
-- 仅新增站点，不覆盖 `/etc/nginx/nginx.conf`
-- 反向代理到 `127.0.0.1:5000`
-- `/api/events/stream` 必须关闭 buffering，并配置长超时以支持 SSE
-- 变更后先执行 `nginx -t`，成功后再 `systemctl reload nginx`
+站点配置文件：
+
+- `deploy/nginx/repeater-nms.conf`
+
+服务器安装路径：
+
+- `/etc/nginx/sites-available/repeater-nms`
+
+启用方式：
+
+- 建立到 `/etc/nginx/sites-enabled/repeater-nms` 的软链接
+
+要求：
+
+- 不覆盖 `/etc/nginx/nginx.conf`
+- 反代到 `127.0.0.1:5000`
+- 对 `/api/events/stream` 关闭 buffering
+- 变更后先执行：
+  - `sudo nginx -t`
+- 测试成功后再执行：
+  - `sudo systemctl reload nginx`
+
+当前对外端口：
+
+- `10099/tcp`
 
 ## MySQL
 
-- 使用已有 schema：`zjq_admin`
+- schema：`zjq_admin`
 - 用户：`my_analyzer`
-- 真实密码仅通过环境变量 `DB_PASSWORD` 注入
-- 需要 `PyMySQL` 与 `cryptography`，以兼容 MySQL 8 默认认证插件
 - 只允许创建和维护 `repeater_` 前缀表
-- 数据库存储时间统一使用 UTC，前端展示转换为 `Asia/Shanghai`
 - 初始化命令：
   - `python -m flask --app wsgi init-db`
-  - `python -m repeater_nms.db init-db`
+
+注意事项：
+
+- 不新建数据库
+- 不修改 `zjq_admin` 中非 `repeater_` 前缀表
+- 如果密码包含 `@` 等特殊字符，`DATABASE_URL` 中必须做 URL 编码
+- 时间统一按 UTC 入库，前端按 `Asia/Shanghai` 展示
 
 ## Redis
 
-- 默认地址：`redis://127.0.0.1:6379/0`
-- SSE / collector 实时事件 channel：`repeater_nms:trap_events`
-- 可扩展缓存键前缀：`repeater_nms:*`
+- 地址：`redis://127.0.0.1:6379/0`
+- 实时事件通道：
+  - `repeater_nms:trap_events`
+
+用途：
+
+- SSE 实时事件发布
+- 最新状态缓存
+- 实时 Trap 缓存
 
 ## Trap 端口说明
 
-- collector 监听 `0.0.0.0:1162/udp`
-- 设备源端口可能是 `162`，不能据此匹配设备
-- 1162 不是低端口，collector 不需要 root，也不需要 `CAP_NET_BIND_SERVICE`
+- Collector 监听：
+  - `0.0.0.0:1162/udp`
+- 设备源端口可能是 `162/udp`
+- 设备匹配必须优先使用源 IP，不得使用源端口
+- 单条 Trap 解析失败不得导致 collector 退出
+
+## 服务器验收检查
+
+- `ss -lntp | grep 10099`
+- `ss -lntp | grep 5000`
+- `ss -lunp | grep 1162`
+- `redis-cli ping`
+- `curl -I http://127.0.0.1:10099/login`
+- `journalctl -u repeater-nms-collector -n 100 --no-pager`
+- `mysql -h127.0.0.1 -u<user> -p -e "select count(*) from zjq_admin.repeater_trap_events;"`

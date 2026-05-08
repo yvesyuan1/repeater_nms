@@ -13,3 +13,4 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+deploy_server.zip
