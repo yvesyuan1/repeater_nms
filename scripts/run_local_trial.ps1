@@ -23,9 +23,20 @@ try {
   Write-Host "Initial poll skipped: $($_.Exception.Message)"
 }
 
+$collectorStdout = Join-Path $root "local_trial_collector_stdout.log"
+$collectorStderr = Join-Path $root "local_trial_collector_stderr.log"
+Start-Process `
+  -FilePath .\.venv\Scripts\python.exe `
+  -ArgumentList '-m','repeater_nms.collector','run' `
+  -WorkingDirectory $root `
+  -WindowStyle Hidden `
+  -RedirectStandardOutput $collectorStdout `
+  -RedirectStandardError $collectorStderr | Out-Null
+
 Write-Host "Local trial initialized."
 Write-Host "Open: http://127.0.0.1:5000/login"
 Write-Host "Username: admin"
 Write-Host "Password: $env:ADMIN_PASSWORD"
+Write-Host "Collector log: $collectorStdout"
 
 & .\.venv\Scripts\python.exe -m flask --app wsgi run --host 127.0.0.1 --port 5000

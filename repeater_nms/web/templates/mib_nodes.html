@@ -1,524 +1,520 @@
 {% extends "base.html" %}
 
+{% macro tab_link(tab_value, label) -%}
+  <a
+    class="button {{ '' if active_tab == tab_value else 'secondary' }}"
+    href="{{ url_for('web.mib_nodes', profile_code=selected_profile.profile_code if selected_profile else None, tab=tab_value) }}"
+  >{{ label }}</a>
+{%- endmacro %}
+
+{% macro list_link(href, selected, title, subtitle='') -%}
+  <a
+    href="{{ href }}"
+    style="display:block;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:{{ '#eef6fb' if selected else '#fff' }};color:var(--text);"
+  >
+    <div style="font-weight:600;">{{ title }}</div>
+    {% if subtitle %}<div class="muted" style="margin-top:4px;">{{ subtitle }}</div>{% endif %}
+  </a>
+{%- endmacro %}
+
 {% block content %}
-  <form method="get" class="filters" style="margin-bottom:18px;">
-    <label style="min-width:320px;">
-      <div class="muted">当前设备模板</div>
-      <select name="profile_code" onchange="this.form.submit()">
-        {% for item in profiles %}
-          <option value="{{ item.profile_code }}" {% if selected_profile and selected_profile.profile_code == item.profile_code %}selected{% endif %}>
-            {{ item.vendor }} {{ item.model }} / {{ item.category }} / {{ item.profile_code }}
-          </option>
-        {% endfor %}
-      </select>
-    </label>
-  </form>
+  <style>
+    .template-shell {
+      display: grid;
+      gap: 18px;
+    }
+    .template-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .template-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .template-workbench {
+      display: grid;
+      grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .template-list {
+      display: grid;
+      gap: 12px;
+    }
+    .template-detail {
+      display: grid;
+      gap: 14px;
+    }
+    .template-summary {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .template-summary dt {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .template-summary dd {
+      margin: 0;
+      font-weight: 600;
+    }
+    @media (max-width: 1100px) {
+      .template-workbench {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 
-  {% if can_manage_templates %}
-    <section class="card" style="margin-bottom:18px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;">
-        <h3 style="margin:0;">新建设备模板</h3>
-        <span class="tag">管理员</span>
-      </div>
-      <form method="post" action="{{ url_for('web.create_mib_profile') }}" class="form-grid">
-        <label>
-          <div class="muted">模板编码</div>
-          <input type="text" name="profile_code" placeholder="例如：vendor_model_v1">
+  <div class="template-shell">
+    <div class="template-toolbar">
+      <form method="get" class="filters" style="margin:0;">
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <label style="min-width:320px;">
+          <div class="muted">当前设备模板</div>
+          <select name="profile_code" onchange="this.form.submit()">
+            {% for item in profiles %}
+              <option value="{{ item.profile_code }}" {% if selected_profile and selected_profile.profile_code == item.profile_code %}selected{% endif %}>
+                {{ item.vendor }} {{ item.model }} / {{ item.category }} / {{ item.profile_code }}
+              </option>
+            {% endfor %}
+          </select>
         </label>
-        <label>
-          <div class="muted">厂家</div>
-          <input type="text" name="vendor" placeholder="例如：博汇">
-        </label>
-        <label>
-          <div class="muted">型号</div>
-          <input type="text" name="model" placeholder="例如：RX10">
-        </label>
-        <label>
-          <div class="muted">类别</div>
-          <input type="text" name="category" value="中继器">
-        </label>
-        <label>
-          <div class="muted">解析器键</div>
-          <input type="text" name="parser_key" value="bohui_rx10">
-        </label>
-        <label class="full">
-          <div class="muted">说明</div>
-          <textarea name="description" placeholder="填写适用设备、Trap 差异、采集差异等。"></textarea>
-        </label>
-        <div class="full">
-          <button type="submit">创建设备模板</button>
-        </div>
       </form>
-    </section>
-  {% endif %}
-
-  {% if selected_profile %}
-    <div class="grid cards">
-      <div class="card">
-        <div class="label">模板编码</div>
-        <div class="value" style="font-size:20px;">{{ selected_profile.profile_code }}</div>
-      </div>
-      <div class="card">
-        <div class="label">厂家 / 型号</div>
-        <div class="value" style="font-size:20px;">{{ selected_profile.vendor }} {{ selected_profile.model }}</div>
-      </div>
-      <div class="card">
-        <div class="label">类别</div>
-        <div class="value" style="font-size:20px;">{{ selected_profile.category }}</div>
-      </div>
-      <div class="card">
-        <div class="label">模板属性</div>
-        <div class="value" style="font-size:20px;">{{ '内置模板' if selected_profile.is_builtin else '自定义模板' }}</div>
-      </div>
+      {% if can_manage_templates %}
+        <div class="template-tabs">
+          <a class="button secondary" href="{{ url_for('web.mib_nodes', profile_code=selected_profile.profile_code if selected_profile else None, tab='profile', mode='create') }}">新建设备模板</a>
+        </div>
+      {% endif %}
     </div>
 
-    {% if can_manage_templates %}
-      <section class="card" style="margin-top:18px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;">
-          <h3 style="margin:0;">模板配置</h3>
-          {% if not selected_profile.is_builtin %}
-            <form method="post" action="{{ url_for('web.delete_mib_profile', profile_code=selected_profile.profile_code) }}" onsubmit="return confirm('确认删除该设备模板？')">
-              <button class="danger" type="submit">删除模板</button>
-            </form>
-          {% else %}
-            <span class="tag">内置模板不可删除</span>
-          {% endif %}
+    {% if selected_profile %}
+      <div class="grid cards">
+        <div class="card">
+          <div class="label">模板编码</div>
+          <div class="value" style="font-size:20px;">{{ selected_profile.profile_code }}</div>
         </div>
-        <form method="post" action="{{ url_for('web.update_mib_profile', profile_code=selected_profile.profile_code) }}" class="form-grid">
-          <label>
-            <div class="muted">厂家</div>
-            <input type="text" name="vendor" value="{{ selected_profile.vendor }}">
-          </label>
-          <label>
-            <div class="muted">型号</div>
-            <input type="text" name="model" value="{{ selected_profile.model }}">
-          </label>
-          <label>
-            <div class="muted">类别</div>
-            <input type="text" name="category" value="{{ selected_profile.category }}">
-          </label>
-          <label>
-            <div class="muted">解析器键</div>
-            <input type="text" name="parser_key" value="{{ selected_profile.parser_key }}">
-          </label>
-          <label class="full">
-            <div class="muted">说明</div>
-            <textarea name="description">{{ selected_profile.description or '' }}</textarea>
-          </label>
-          <div class="full">
-            <button type="submit">保存模板配置</button>
-          </div>
-        </form>
-      </section>
-    {% endif %}
+        <div class="card">
+          <div class="label">厂家 / 型号</div>
+          <div class="value" style="font-size:20px;">{{ selected_profile.vendor }} {{ selected_profile.model }}</div>
+        </div>
+        <div class="card">
+          <div class="label">类别</div>
+          <div class="value" style="font-size:20px;">{{ selected_profile.category }}</div>
+        </div>
+        <div class="card">
+          <div class="label">对象数量</div>
+          <div class="value" style="font-size:20px;">{{ strategies|length }} 策略 / {{ nodes|length }} 节点 / {{ enums|length }} 枚举 / {{ alarm_rules|length }} 告警</div>
+        </div>
+      </div>
 
-    <section class="card" style="margin-top:18px;">
-      <h3 style="margin-top:0;">采集策略</h3>
-      {% if can_manage_templates %}
-        <form method="post" action="{{ url_for('web.create_polling_strategy') }}" class="form-grid" style="margin-bottom:18px;">
-          <input type="hidden" name="profile_code" value="{{ selected_profile.profile_code }}">
-          <label>
-            <div class="muted">关联 MIB 节点</div>
-            <select name="mib_node_id">
-              <option value="">手动填写</option>
-              {% for node in nodes %}
-                <option value="{{ node.id }}">{{ node.name }} / {{ node.name_zh or '-' }} / {{ node.oid }}</option>
-              {% endfor %}
-            </select>
-          </label>
-          <label>
-            <div class="muted">节点名</div>
-            <input type="text" name="node_name" placeholder="例如：apsActive">
-          </label>
-          <label>
-            <div class="muted">中文名称</div>
-            <input type="text" name="node_name_zh" placeholder="例如：当前活跃侧">
-          </label>
-          <label>
-            <div class="muted">OID</div>
-            <input type="text" name="oid" placeholder="例如：1.3.6.1.4.1...">
-          </label>
-          <label>
-            <div class="muted">分组</div>
-            <input type="text" name="category" placeholder="例如：aps">
-          </label>
-          <label>
-            <div class="muted">采集周期(秒)</div>
-            <input type="number" name="poll_interval_seconds" min="5" step="1" value="60">
-          </label>
-          <label>
-            <div class="muted">展示顺序</div>
-            <input type="number" name="display_order" min="1" step="1" value="100">
-          </label>
-          <label>
-            <div class="muted">判断规则</div>
-            <select name="judge_type">
-              {% for value, label in judge_type_options %}
-                <option value="{{ value }}">{{ label }}</option>
-              {% endfor %}
-            </select>
-          </label>
-          <label>
-            <div class="muted">正常值集合</div>
-            <input type="text" name="expected_value_text" placeholder="例如：work,self,0">
-          </label>
-          <label>
-            <div class="muted">不匹配状态</div>
-            <select name="health_on_mismatch">
-              {% for value, label in health_options %}
-                <option value="{{ value }}">{{ label }}</option>
-              {% endfor %}
-            </select>
-          </label>
-          <label class="full">
-            <div class="muted">说明</div>
-            <input type="text" name="notes" placeholder="例如：首页展示核心状态">
-          </label>
-          <label><input type="checkbox" name="is_enabled" checked> 启用</label>
-          <label><input type="checkbox" name="save_history" checked> 保存历史</label>
-          <label><input type="checkbox" name="show_in_overview"> 首页展示</label>
-          <label><input type="checkbox" name="show_in_device_card"> 设备卡片展示</label>
-          <div class="full">
-            <button type="submit">新增采集策略</button>
+      <div class="template-tabs">
+        {{ tab_link('profile', '模板信息') }}
+        {{ tab_link('strategies', '采集策略') }}
+        {{ tab_link('nodes', 'MIB 节点') }}
+        {{ tab_link('enums', '枚举翻译') }}
+        {{ tab_link('rules', '告警规则') }}
+      </div>
+
+      {% if active_tab == 'profile' %}
+        <div class="template-workbench">
+          <section class="card template-list">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <h3 style="margin:0;">模板摘要</h3>
+              <span class="tag">{{ '内置模板' if selected_profile.is_builtin else '自定义模板' }}</span>
+            </div>
+            <dl class="template-summary">
+              <dt>模板编码</dt>
+              <dd>{{ selected_profile.profile_code }}</dd>
+              <dt>厂家 / 型号</dt>
+              <dd>{{ selected_profile.vendor }} {{ selected_profile.model }}</dd>
+              <dt>类别</dt>
+              <dd>{{ selected_profile.category }}</dd>
+              <dt>解析器键</dt>
+              <dd>{{ selected_profile.parser_key }}</dd>
+              <dt>说明</dt>
+              <dd>{{ selected_profile.description or '未填写' }}</dd>
+            </dl>
+          </section>
+
+          <div class="template-detail">
+            {% if can_manage_templates and create_mode %}
+              <section class="card">
+                <h3 style="margin-top:0;">新建设备模板</h3>
+                <form method="post" action="{{ url_for('web.create_mib_profile') }}" class="form-grid">
+                  <label>
+                    <div class="muted">模板编码</div>
+                    <input type="text" name="profile_code" placeholder="例如：vendor_model_v1">
+                  </label>
+                  <label>
+                    <div class="muted">厂家</div>
+                    <input type="text" name="vendor" placeholder="例如：博汇">
+                  </label>
+                  <label>
+                    <div class="muted">型号</div>
+                    <input type="text" name="model" placeholder="例如：RX10">
+                  </label>
+                  <label>
+                    <div class="muted">类别</div>
+                    <input type="text" name="category" value="中继器">
+                  </label>
+                  <label>
+                    <div class="muted">解析器键</div>
+                    <input type="text" name="parser_key" value="bohui_rx10">
+                  </label>
+                  <label class="full">
+                    <div class="muted">说明</div>
+                    <textarea name="description" placeholder="填写适用设备、Trap 差异、采集差异等。"></textarea>
+                  </label>
+                  <div class="full">
+                    <button type="submit">创建模板</button>
+                    <a class="button secondary" href="{{ url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='profile') }}">取消</a>
+                  </div>
+                </form>
+              </section>
+            {% endif %}
+
+            <section class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                <h3 style="margin:0;">模板配置</h3>
+                {% if can_manage_templates and not selected_profile.is_builtin %}
+                  <form method="post" action="{{ url_for('web.delete_mib_profile', profile_code=selected_profile.profile_code) }}" onsubmit="return confirm('确认删除该设备模板？')">
+                    <button class="danger" type="submit">删除模板</button>
+                  </form>
+                {% endif %}
+              </div>
+              <form method="post" action="{{ url_for('web.update_mib_profile', profile_code=selected_profile.profile_code) }}" class="form-grid" style="margin-top:14px;">
+                <label>
+                  <div class="muted">厂家</div>
+                  <input type="text" name="vendor" value="{{ selected_profile.vendor }}">
+                </label>
+                <label>
+                  <div class="muted">型号</div>
+                  <input type="text" name="model" value="{{ selected_profile.model }}">
+                </label>
+                <label>
+                  <div class="muted">类别</div>
+                  <input type="text" name="category" value="{{ selected_profile.category }}">
+                </label>
+                <label>
+                  <div class="muted">解析器键</div>
+                  <input type="text" name="parser_key" value="{{ selected_profile.parser_key }}">
+                </label>
+                <label class="full">
+                  <div class="muted">说明</div>
+                  <textarea name="description">{{ selected_profile.description or '' }}</textarea>
+                </label>
+                <div class="full">
+                  <button type="submit">保存模板配置</button>
+                </div>
+              </form>
+            </section>
           </div>
-        </form>
-      {% endif %}
-      <div style="overflow:auto;">
-        <table>
-          <thead>
-            <tr>
-              <th>节点</th>
-              <th>OID</th>
-              <th>分组</th>
-              <th>周期</th>
-              <th>展示</th>
-              <th>判断</th>
-              <th>正常值</th>
-              <th>异常状态</th>
-              <th>说明</th>
-              {% if can_manage_templates %}<th>操作</th>{% endif %}
-            </tr>
-          </thead>
-          <tbody>
+        </div>
+      {% elif active_tab == 'strategies' %}
+        <div class="template-workbench">
+          <section class="card template-list">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <h3 style="margin:0;">采集策略列表</h3>
+              {% if can_manage_templates %}
+                <a class="button secondary" href="{{ url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='strategies', mode='create') }}">新增策略</a>
+              {% endif %}
+            </div>
             {% for item in strategies %}
-              <tr>
-                <td style="min-width:260px;">
-                  <form id="strategy-form-{{ item.id }}" method="post" action="{{ url_for('web.update_polling_strategy', strategy_id=item.id) }}"></form>
-                  <select form="strategy-form-{{ item.id }}" name="mib_node_id" style="margin-bottom:8px;">
+              {{ list_link(url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='strategies', strategy_id=item.id), selected_strategy and selected_strategy.id == item.id, item.node_name_zh or item.node_name, (item.category or '-') ~ ' / ' ~ item.oid ~ ' / ' ~ item.poll_interval_seconds ~ '秒') }}
+            {% else %}
+              <div class="soft-note" style="margin:0;">当前模板还没有采集策略。</div>
+            {% endfor %}
+          </section>
+
+          <section class="card">
+            {% if can_manage_templates and create_mode %}
+              <h3 style="margin-top:0;">新增采集策略</h3>
+              <form method="post" action="{{ url_for('web.create_polling_strategy') }}" class="form-grid">
+                <input type="hidden" name="profile_code" value="{{ selected_profile.profile_code }}">
+                <label>
+                  <div class="muted">关联 MIB 节点</div>
+                  <select name="mib_node_id">
+                    <option value="">手动填写</option>
+                    {% for node in nodes %}
+                      <option value="{{ node.id }}">{{ node.name }} / {{ node.name_zh or '-' }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+                <label><div class="muted">节点名</div><input type="text" name="node_name"></label>
+                <label><div class="muted">中文名称</div><input type="text" name="node_name_zh"></label>
+                <label><div class="muted">OID</div><input type="text" name="oid"></label>
+                <label><div class="muted">分组</div><input type="text" name="category"></label>
+                <label><div class="muted">采集周期(秒)</div><input type="number" name="poll_interval_seconds" min="5" step="1" value="60"></label>
+                <label><div class="muted">展示顺序</div><input type="number" name="display_order" min="1" step="1" value="100"></label>
+                <label>
+                  <div class="muted">判断规则</div>
+                  <select name="judge_type">
+                    {% for value, label in judge_type_options %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                  </select>
+                </label>
+                <label><div class="muted">正常值集合</div><input type="text" name="expected_value_text"></label>
+                <label>
+                  <div class="muted">不匹配状态</div>
+                  <select name="health_on_mismatch">
+                    {% for value, label in health_options %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                  </select>
+                </label>
+                <label class="full"><div class="muted">说明</div><input type="text" name="notes"></label>
+                <label><input type="checkbox" name="is_enabled" checked> 启用</label>
+                <label><input type="checkbox" name="save_history" checked> 保存历史</label>
+                <label><input type="checkbox" name="show_in_overview"> 首页展示</label>
+                <label><input type="checkbox" name="show_in_device_card"> 设备卡片展示</label>
+                <div class="full">
+                  <button type="submit">创建策略</button>
+                  <a class="button secondary" href="{{ url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='strategies') }}">取消</a>
+                </div>
+              </form>
+            {% elif selected_strategy %}
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                <h3 style="margin:0;">编辑采集策略</h3>
+                {% if can_manage_templates %}
+                  <form method="post" action="{{ url_for('web.delete_polling_strategy', strategy_id=selected_strategy.id) }}" onsubmit="return confirm('确认删除该采集策略？')">
+                    <button class="danger" type="submit">删除</button>
+                  </form>
+                {% endif %}
+              </div>
+              <form method="post" action="{{ url_for('web.update_polling_strategy', strategy_id=selected_strategy.id) }}" class="form-grid" style="margin-top:14px;">
+                <label>
+                  <div class="muted">关联 MIB 节点</div>
+                  <select name="mib_node_id">
                     <option value="">不关联节点</option>
                     {% for node in nodes %}
-                      <option value="{{ node.id }}" {% if item.mib_node_id == node.id %}selected{% endif %}>{{ node.name }} / {{ node.name_zh or '-' }}</option>
+                      <option value="{{ node.id }}" {% if selected_strategy.mib_node_id == node.id %}selected{% endif %}>{{ node.name }} / {{ node.name_zh or '-' }}</option>
                     {% endfor %}
                   </select>
-                  <input form="strategy-form-{{ item.id }}" type="text" name="node_name" value="{{ item.node_name }}" style="margin-bottom:8px;">
-                  <input form="strategy-form-{{ item.id }}" type="text" name="node_name_zh" value="{{ item.node_name_zh or '' }}">
-                </td>
-                <td style="min-width:220px;"><input form="strategy-form-{{ item.id }}" type="text" name="oid" value="{{ item.oid }}"></td>
-                <td style="min-width:140px;">
-                  <input form="strategy-form-{{ item.id }}" type="text" name="category" value="{{ item.category or '' }}" style="margin-bottom:8px;">
-                  <input form="strategy-form-{{ item.id }}" type="number" name="display_order" min="1" step="1" value="{{ item.display_order }}">
-                </td>
-                <td style="min-width:100px;"><input form="strategy-form-{{ item.id }}" type="number" min="5" step="1" name="poll_interval_seconds" value="{{ item.poll_interval_seconds }}"></td>
-                <td style="min-width:140px;">
-                  <label><input form="strategy-form-{{ item.id }}" type="checkbox" name="is_enabled" {% if item.is_enabled %}checked{% endif %}> 启用</label><br>
-                  <label><input form="strategy-form-{{ item.id }}" type="checkbox" name="save_history" {% if item.save_history %}checked{% endif %}> 历史</label><br>
-                  <label><input form="strategy-form-{{ item.id }}" type="checkbox" name="show_in_overview" {% if item.show_in_overview %}checked{% endif %}> 首页</label><br>
-                  <label><input form="strategy-form-{{ item.id }}" type="checkbox" name="show_in_device_card" {% if item.show_in_device_card %}checked{% endif %}> 卡片</label>
-                </td>
-                <td style="min-width:160px;">
-                  <select form="strategy-form-{{ item.id }}" name="judge_type">
-                    {% for value, label in judge_type_options %}
-                      <option value="{{ value }}" {% if item.judge_type == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
+                </label>
+                <label><div class="muted">节点名</div><input type="text" name="node_name" value="{{ selected_strategy.node_name }}"></label>
+                <label><div class="muted">中文名称</div><input type="text" name="node_name_zh" value="{{ selected_strategy.node_name_zh or '' }}"></label>
+                <label><div class="muted">OID</div><input type="text" name="oid" value="{{ selected_strategy.oid }}"></label>
+                <label><div class="muted">分组</div><input type="text" name="category" value="{{ selected_strategy.category or '' }}"></label>
+                <label><div class="muted">采集周期(秒)</div><input type="number" name="poll_interval_seconds" min="5" step="1" value="{{ selected_strategy.poll_interval_seconds }}"></label>
+                <label><div class="muted">展示顺序</div><input type="number" name="display_order" min="1" step="1" value="{{ selected_strategy.display_order }}"></label>
+                <label>
+                  <div class="muted">判断规则</div>
+                  <select name="judge_type">
+                    {% for value, label in judge_type_options %}<option value="{{ value }}" {% if selected_strategy.judge_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
                   </select>
-                </td>
-                <td style="min-width:160px;"><input form="strategy-form-{{ item.id }}" type="text" name="expected_value_text" value="{{ item.expected_value_text or '' }}"></td>
-                <td style="min-width:140px;">
-                  <select form="strategy-form-{{ item.id }}" name="health_on_mismatch">
-                    {% for value, label in health_options %}
-                      <option value="{{ value }}" {% if item.health_on_mismatch == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
+                </label>
+                <label><div class="muted">正常值集合</div><input type="text" name="expected_value_text" value="{{ selected_strategy.expected_value_text or '' }}"></label>
+                <label>
+                  <div class="muted">不匹配状态</div>
+                  <select name="health_on_mismatch">
+                    {% for value, label in health_options %}<option value="{{ value }}" {% if selected_strategy.health_on_mismatch == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
                   </select>
-                </td>
-                <td style="min-width:180px;"><input form="strategy-form-{{ item.id }}" type="text" name="notes" value="{{ item.notes or '' }}"></td>
-                {% if can_manage_templates %}
-                  <td style="min-width:130px;">
-                    <button type="submit" form="strategy-form-{{ item.id }}">保存</button>
-                    <form method="post" action="{{ url_for('web.delete_polling_strategy', strategy_id=item.id) }}" style="margin-top:8px;" onsubmit="return confirm('确认删除该采集策略？')">
-                      <button class="danger" type="submit">删除</button>
-                    </form>
-                  </td>
-                {% endif %}
-              </tr>
+                </label>
+                <label class="full"><div class="muted">说明</div><input type="text" name="notes" value="{{ selected_strategy.notes or '' }}"></label>
+                <label><input type="checkbox" name="is_enabled" {% if selected_strategy.is_enabled %}checked{% endif %}> 启用</label>
+                <label><input type="checkbox" name="save_history" {% if selected_strategy.save_history %}checked{% endif %}> 保存历史</label>
+                <label><input type="checkbox" name="show_in_overview" {% if selected_strategy.show_in_overview %}checked{% endif %}> 首页展示</label>
+                <label><input type="checkbox" name="show_in_device_card" {% if selected_strategy.show_in_device_card %}checked{% endif %}> 设备卡片展示</label>
+                <div class="full"><button type="submit">保存采集策略</button></div>
+              </form>
             {% else %}
-              <tr><td colspan="{{ 10 if can_manage_templates else 9 }}">暂无采集策略。</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="card" style="margin-top:18px;">
-      <h3 style="margin-top:0;">MIB 节点</h3>
-      {% if can_manage_templates %}
-        <form method="post" action="{{ url_for('web.create_mib_node') }}" class="form-grid" style="margin-bottom:18px;">
-          <input type="hidden" name="profile_code" value="{{ selected_profile.profile_code }}">
-          <label>
-            <div class="muted">OID</div>
-            <input type="text" name="oid" placeholder="1.3.6.1.4.1...">
-          </label>
-          <label>
-            <div class="muted">节点名</div>
-            <input type="text" name="name" placeholder="例如：apsActive">
-          </label>
-          <label>
-            <div class="muted">中文名称</div>
-            <input type="text" name="name_zh" placeholder="例如：当前活跃侧">
-          </label>
-          <label>
-            <div class="muted">分组</div>
-            <input type="text" name="category" placeholder="例如：aps">
-          </label>
-          <label>
-            <div class="muted">分组中文</div>
-            <input type="text" name="category_zh" placeholder="例如：APS">
-          </label>
-          <label>
-            <div class="muted">访问权限</div>
-            <input type="text" name="access" value="read-only">
-          </label>
-          <label>
-            <div class="muted">数据类型</div>
-            <input type="text" name="data_type" value="Integer">
-          </label>
-          <label>
-            <div class="muted">枚举名</div>
-            <input type="text" name="enum_name" placeholder="例如：EAPSSTATE">
-          </label>
-          <label>
-            <div class="muted">单位</div>
-            <input type="text" name="unit" placeholder="例如：ms">
-          </label>
-          <label>
-            <div class="muted">展示顺序</div>
-            <input type="number" name="overview_order" min="0" step="1" value="100">
-          </label>
-          <label><input type="checkbox" name="is_pollable"> 可轮询</label>
-          <label><input type="checkbox" name="is_trap_field"> Trap 字段</label>
-          <label><input type="checkbox" name="is_set_reserved"> 预留 SET</label>
-          <label><input type="checkbox" name="scalar_suffix_zero"> 标量补 .0</label>
-          <label class="full">
-            <div class="muted">说明</div>
-            <textarea name="description" placeholder="填写节点含义和页面展示说明。"></textarea>
-          </label>
-          <div class="full">
-            <button type="submit">新增 MIB 节点</button>
-          </div>
-        </form>
-      {% endif %}
-      <div style="overflow:auto;">
-        <table>
-          <thead>
-            <tr>
-              <th>节点信息</th>
-              <th>OID / 类型</th>
-              <th>分组 / 枚举 / 单位</th>
-              <th>属性</th>
-              <th>说明</th>
-              {% if can_manage_templates %}<th>操作</th>{% endif %}
-            </tr>
-          </thead>
-          <tbody>
+              <div class="soft-note" style="margin:0;">先从左侧选择一条策略，或新增一条策略。</div>
+            {% endif %}
+          </section>
+        </div>
+      {% elif active_tab == 'nodes' %}
+        <div class="template-workbench">
+          <section class="card template-list">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <h3 style="margin:0;">MIB 节点列表</h3>
+              {% if can_manage_templates %}
+                <a class="button secondary" href="{{ url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='nodes', mode='create') }}">新增节点</a>
+              {% endif %}
+            </div>
             {% for item in nodes %}
-              <tr>
-                <td style="min-width:220px;">
-                  <form id="node-form-{{ item.id }}" method="post" action="{{ url_for('web.update_mib_node', node_id=item.id) }}"></form>
-                  <input form="node-form-{{ item.id }}" type="text" name="name" value="{{ item.name }}" style="margin-bottom:8px;">
-                  <input form="node-form-{{ item.id }}" type="text" name="name_zh" value="{{ item.name_zh or '' }}">
-                </td>
-                <td style="min-width:240px;">
-                  <input form="node-form-{{ item.id }}" type="text" name="oid" value="{{ item.oid }}" style="margin-bottom:8px;">
-                  <input form="node-form-{{ item.id }}" type="text" name="data_type" value="{{ item.data_type }}">
-                </td>
-                <td style="min-width:180px;">
-                  <input form="node-form-{{ item.id }}" type="text" name="category" value="{{ item.category }}" style="margin-bottom:8px;">
-                  <input form="node-form-{{ item.id }}" type="text" name="category_zh" value="{{ item.category_zh or '' }}" style="margin-bottom:8px;">
-                  <input form="node-form-{{ item.id }}" type="text" name="enum_name" value="{{ item.enum_name or '' }}" style="margin-bottom:8px;">
-                  <input form="node-form-{{ item.id }}" type="text" name="unit" value="{{ item.unit or '' }}">
-                </td>
-                <td style="min-width:180px;">
-                  <input form="node-form-{{ item.id }}" type="text" name="access" value="{{ item.access }}" style="margin-bottom:8px;">
-                  <input form="node-form-{{ item.id }}" type="number" name="overview_order" min="0" step="1" value="{{ item.overview_order or 100 }}" style="margin-bottom:8px;">
-                  <label><input form="node-form-{{ item.id }}" type="checkbox" name="is_pollable" {% if item.is_pollable %}checked{% endif %}> 可轮询</label><br>
-                  <label><input form="node-form-{{ item.id }}" type="checkbox" name="is_trap_field" {% if item.is_trap_field %}checked{% endif %}> Trap</label><br>
-                  <label><input form="node-form-{{ item.id }}" type="checkbox" name="is_set_reserved" {% if item.is_set_reserved %}checked{% endif %}> SET</label><br>
-                  <label><input form="node-form-{{ item.id }}" type="checkbox" name="scalar_suffix_zero" {% if item.scalar_suffix_zero %}checked{% endif %}> 补 .0</label>
-                </td>
-                <td style="min-width:240px;">
-                  <textarea form="node-form-{{ item.id }}" name="description">{{ item.description }}</textarea>
-                </td>
-                {% if can_manage_templates %}
-                  <td style="min-width:130px;">
-                    <button type="submit" form="node-form-{{ item.id }}">保存</button>
-                    <form method="post" action="{{ url_for('web.delete_mib_node', node_id=item.id) }}" style="margin-top:8px;" onsubmit="return confirm('确认删除该 MIB 节点？')">
-                      <button class="danger" type="submit">删除</button>
-                    </form>
-                  </td>
-                {% endif %}
-              </tr>
+              {{ list_link(url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='nodes', node_id=item.id), selected_node and selected_node.id == item.id, item.name_zh or item.name, item.oid) }}
             {% else %}
-              <tr><td colspan="{{ 6 if can_manage_templates else 5 }}">暂无 MIB 节点。</td></tr>
+              <div class="soft-note" style="margin:0;">当前模板还没有 MIB 节点。</div>
             {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </section>
+          </section>
 
-    <section class="card" style="margin-top:18px;">
-      <h3 style="margin-top:0;">枚举翻译</h3>
-      {% if can_manage_templates %}
-        <form method="post" action="{{ url_for('web.create_mib_enum') }}" class="form-grid" style="margin-bottom:18px;">
-          <input type="hidden" name="profile_code" value="{{ selected_profile.profile_code }}">
-          <label>
-            <div class="muted">枚举名</div>
-            <input type="text" name="enum_name" placeholder="例如：EAPSSTATE">
-          </label>
-          <label>
-            <div class="muted">编码</div>
-            <input type="number" name="code" step="1" value="0">
-          </label>
-          <label>
-            <div class="muted">标签</div>
-            <input type="text" name="label" placeholder="例如：normal">
-          </label>
-          <label class="full">
-            <div class="muted">说明</div>
-            <input type="text" name="description" placeholder="例如：正常状态">
-          </label>
-          <div class="full">
-            <button type="submit">新增枚举</button>
-          </div>
-        </form>
-      {% endif %}
-      <div style="overflow:auto;">
-        <table>
-          <thead>
-            <tr>
-              <th>枚举名</th>
-              <th>编码</th>
-              <th>标签</th>
-              <th>说明</th>
-              {% if can_manage_templates %}<th>操作</th>{% endif %}
-            </tr>
-          </thead>
-          <tbody>
+          <section class="card">
+            {% if can_manage_templates and create_mode %}
+              <h3 style="margin-top:0;">新增 MIB 节点</h3>
+              <form method="post" action="{{ url_for('web.create_mib_node') }}" class="form-grid">
+                <input type="hidden" name="profile_code" value="{{ selected_profile.profile_code }}">
+                <label><div class="muted">OID</div><input type="text" name="oid"></label>
+                <label><div class="muted">节点名</div><input type="text" name="name"></label>
+                <label><div class="muted">中文名称</div><input type="text" name="name_zh"></label>
+                <label><div class="muted">分组</div><input type="text" name="category"></label>
+                <label><div class="muted">分组中文</div><input type="text" name="category_zh"></label>
+                <label><div class="muted">访问权限</div><input type="text" name="access" value="read-only"></label>
+                <label><div class="muted">数据类型</div><input type="text" name="data_type" value="Integer"></label>
+                <label><div class="muted">枚举名</div><input type="text" name="enum_name"></label>
+                <label><div class="muted">单位</div><input type="text" name="unit"></label>
+                <label><div class="muted">展示顺序</div><input type="number" name="overview_order" min="0" step="1" value="100"></label>
+                <label><input type="checkbox" name="is_pollable"> 可轮询</label>
+                <label><input type="checkbox" name="is_trap_field"> Trap 字段</label>
+                <label><input type="checkbox" name="is_set_reserved"> 预留 SET</label>
+                <label><input type="checkbox" name="scalar_suffix_zero"> 标量补 .0</label>
+                <label class="full"><div class="muted">说明</div><textarea name="description"></textarea></label>
+                <div class="full">
+                  <button type="submit">创建节点</button>
+                  <a class="button secondary" href="{{ url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='nodes') }}">取消</a>
+                </div>
+              </form>
+            {% elif selected_node %}
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                <h3 style="margin:0;">编辑 MIB 节点</h3>
+                {% if can_manage_templates %}
+                  <form method="post" action="{{ url_for('web.delete_mib_node', node_id=selected_node.id) }}" onsubmit="return confirm('确认删除该 MIB 节点？')">
+                    <button class="danger" type="submit">删除</button>
+                  </form>
+                {% endif %}
+              </div>
+              <form method="post" action="{{ url_for('web.update_mib_node', node_id=selected_node.id) }}" class="form-grid" style="margin-top:14px;">
+                <label><div class="muted">OID</div><input type="text" name="oid" value="{{ selected_node.oid }}"></label>
+                <label><div class="muted">节点名</div><input type="text" name="name" value="{{ selected_node.name }}"></label>
+                <label><div class="muted">中文名称</div><input type="text" name="name_zh" value="{{ selected_node.name_zh or '' }}"></label>
+                <label><div class="muted">分组</div><input type="text" name="category" value="{{ selected_node.category }}"></label>
+                <label><div class="muted">分组中文</div><input type="text" name="category_zh" value="{{ selected_node.category_zh or '' }}"></label>
+                <label><div class="muted">访问权限</div><input type="text" name="access" value="{{ selected_node.access }}"></label>
+                <label><div class="muted">数据类型</div><input type="text" name="data_type" value="{{ selected_node.data_type }}"></label>
+                <label><div class="muted">枚举名</div><input type="text" name="enum_name" value="{{ selected_node.enum_name or '' }}"></label>
+                <label><div class="muted">单位</div><input type="text" name="unit" value="{{ selected_node.unit or '' }}"></label>
+                <label><div class="muted">展示顺序</div><input type="number" name="overview_order" min="0" step="1" value="{{ selected_node.overview_order or 100 }}"></label>
+                <label><input type="checkbox" name="is_pollable" {% if selected_node.is_pollable %}checked{% endif %}> 可轮询</label>
+                <label><input type="checkbox" name="is_trap_field" {% if selected_node.is_trap_field %}checked{% endif %}> Trap 字段</label>
+                <label><input type="checkbox" name="is_set_reserved" {% if selected_node.is_set_reserved %}checked{% endif %}> 预留 SET</label>
+                <label><input type="checkbox" name="scalar_suffix_zero" {% if selected_node.scalar_suffix_zero %}checked{% endif %}> 标量补 .0</label>
+                <label class="full"><div class="muted">说明</div><textarea name="description">{{ selected_node.description }}</textarea></label>
+                <div class="full"><button type="submit">保存 MIB 节点</button></div>
+              </form>
+            {% else %}
+              <div class="soft-note" style="margin:0;">先从左侧选择一个节点，或新增一个节点。</div>
+            {% endif %}
+          </section>
+        </div>
+      {% elif active_tab == 'enums' %}
+        <div class="template-workbench">
+          <section class="card template-list">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <h3 style="margin:0;">枚举列表</h3>
+              {% if can_manage_templates %}
+                <a class="button secondary" href="{{ url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='enums', mode='create') }}">新增枚举</a>
+              {% endif %}
+            </div>
             {% for item in enums %}
-              <tr>
-                <td style="min-width:180px;">
-                  <form id="enum-form-{{ item.id }}" method="post" action="{{ url_for('web.update_mib_enum', enum_id=item.id) }}"></form>
-                  <input form="enum-form-{{ item.id }}" type="text" name="enum_name" value="{{ item.enum_name }}">
-                </td>
-                <td style="min-width:100px;"><input form="enum-form-{{ item.id }}" type="number" name="code" step="1" value="{{ item.code }}"></td>
-                <td style="min-width:140px;"><input form="enum-form-{{ item.id }}" type="text" name="label" value="{{ item.label }}"></td>
-                <td style="min-width:240px;"><input form="enum-form-{{ item.id }}" type="text" name="description" value="{{ item.description }}"></td>
-                {% if can_manage_templates %}
-                  <td style="min-width:130px;">
-                    <button type="submit" form="enum-form-{{ item.id }}">保存</button>
-                    <form method="post" action="{{ url_for('web.delete_mib_enum', enum_id=item.id) }}" style="margin-top:8px;" onsubmit="return confirm('确认删除该枚举值？')">
-                      <button class="danger" type="submit">删除</button>
-                    </form>
-                  </td>
-                {% endif %}
-              </tr>
+              {{ list_link(url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='enums', enum_id=item.id), selected_enum and selected_enum.id == item.id, item.enum_name ~ ' / ' ~ item.code, item.label ~ ' / ' ~ item.description) }}
             {% else %}
-              <tr><td colspan="{{ 5 if can_manage_templates else 4 }}">暂无枚举数据。</td></tr>
+              <div class="soft-note" style="margin:0;">当前模板还没有枚举定义。</div>
             {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </section>
+          </section>
 
-    <section class="card" style="margin-top:18px;">
-      <h3 style="margin-top:0;">告警规则</h3>
-      {% if can_manage_templates %}
-        <form method="post" action="{{ url_for('web.create_alarm_rule') }}" class="form-grid" style="margin-bottom:18px;">
-          <input type="hidden" name="profile_code" value="{{ selected_profile.profile_code }}">
-          <label>
-            <div class="muted">告警 ID</div>
-            <input type="text" name="alarm_id" placeholder="例如：LOS">
-          </label>
-          <label>
-            <div class="muted">默认级别</div>
-            <select name="default_severity">
-              {% for value, label in severity_options %}
-                <option value="{{ value }}">{{ label }}</option>
-              {% endfor %}
-            </select>
-          </label>
-          <label>
-            <div class="muted">分类</div>
-            <input type="text" name="category" placeholder="例如：Critical">
-          </label>
-          <label><input type="checkbox" name="should_create_active" checked> 生成活动告警</label>
-          <label><input type="checkbox" name="should_popup"> 触发弹窗</label>
-          <label class="full">
-            <div class="muted">说明</div>
-            <input type="text" name="description" placeholder="例如：接口 LOS 告警">
-          </label>
-          <div class="full">
-            <button type="submit">新增告警规则</button>
-          </div>
-        </form>
-      {% endif %}
-      <div style="overflow:auto;">
-        <table>
-          <thead>
-            <tr>
-              <th>告警 ID</th>
-              <th>默认级别</th>
-              <th>分类</th>
-              <th>行为</th>
-              <th>说明</th>
-              {% if can_manage_templates %}<th>操作</th>{% endif %}
-            </tr>
-          </thead>
-          <tbody>
-            {% for item in alarm_rules %}
-              <tr>
-                <td style="min-width:180px;">
-                  <form id="rule-form-{{ item.id }}" method="post" action="{{ url_for('web.update_alarm_rule', rule_id=item.id) }}"></form>
-                  <input form="rule-form-{{ item.id }}" type="text" name="alarm_id" value="{{ item.alarm_id }}">
-                </td>
-                <td style="min-width:140px;">
-                  <select form="rule-form-{{ item.id }}" name="default_severity">
-                    {% for value, label in severity_options %}
-                      <option value="{{ value }}" {% if item.default_severity == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                  </select>
-                </td>
-                <td style="min-width:140px;"><input form="rule-form-{{ item.id }}" type="text" name="category" value="{{ item.category or '' }}"></td>
-                <td style="min-width:160px;">
-                  <label><input form="rule-form-{{ item.id }}" type="checkbox" name="should_create_active" {% if item.should_create_active %}checked{% endif %}> 活动告警</label><br>
-                  <label><input form="rule-form-{{ item.id }}" type="checkbox" name="should_popup" {% if item.should_popup %}checked{% endif %}> 弹窗</label>
-                </td>
-                <td style="min-width:240px;"><input form="rule-form-{{ item.id }}" type="text" name="description" value="{{ item.description }}"></td>
+          <section class="card">
+            {% if can_manage_templates and create_mode %}
+              <h3 style="margin-top:0;">新增枚举</h3>
+              <form method="post" action="{{ url_for('web.create_mib_enum') }}" class="form-grid">
+                <input type="hidden" name="profile_code" value="{{ selected_profile.profile_code }}">
+                <label><div class="muted">枚举名</div><input type="text" name="enum_name"></label>
+                <label><div class="muted">编码</div><input type="number" name="code" step="1" value="0"></label>
+                <label><div class="muted">标签</div><input type="text" name="label"></label>
+                <label class="full"><div class="muted">说明</div><input type="text" name="description"></label>
+                <div class="full">
+                  <button type="submit">创建枚举</button>
+                  <a class="button secondary" href="{{ url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='enums') }}">取消</a>
+                </div>
+              </form>
+            {% elif selected_enum %}
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                <h3 style="margin:0;">编辑枚举</h3>
                 {% if can_manage_templates %}
-                  <td style="min-width:130px;">
-                    <button type="submit" form="rule-form-{{ item.id }}">保存</button>
-                    <form method="post" action="{{ url_for('web.delete_alarm_rule', rule_id=item.id) }}" style="margin-top:8px;" onsubmit="return confirm('确认删除该告警规则？')">
-                      <button class="danger" type="submit">删除</button>
-                    </form>
-                  </td>
+                  <form method="post" action="{{ url_for('web.delete_mib_enum', enum_id=selected_enum.id) }}" onsubmit="return confirm('确认删除该枚举？')">
+                    <button class="danger" type="submit">删除</button>
+                  </form>
                 {% endif %}
-              </tr>
+              </div>
+              <form method="post" action="{{ url_for('web.update_mib_enum', enum_id=selected_enum.id) }}" class="form-grid" style="margin-top:14px;">
+                <label><div class="muted">枚举名</div><input type="text" name="enum_name" value="{{ selected_enum.enum_name }}"></label>
+                <label><div class="muted">编码</div><input type="number" name="code" step="1" value="{{ selected_enum.code }}"></label>
+                <label><div class="muted">标签</div><input type="text" name="label" value="{{ selected_enum.label }}"></label>
+                <label class="full"><div class="muted">说明</div><input type="text" name="description" value="{{ selected_enum.description }}"></label>
+                <div class="full"><button type="submit">保存枚举</button></div>
+              </form>
             {% else %}
-              <tr><td colspan="{{ 6 if can_manage_templates else 5 }}">暂无告警规则。</td></tr>
+              <div class="soft-note" style="margin:0;">先从左侧选择一个枚举，或新增一个枚举。</div>
+            {% endif %}
+          </section>
+        </div>
+      {% elif active_tab == 'rules' %}
+        <div class="template-workbench">
+          <section class="card template-list">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <h3 style="margin:0;">告警规则列表</h3>
+              {% if can_manage_templates %}
+                <a class="button secondary" href="{{ url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='rules', mode='create') }}">新增规则</a>
+              {% endif %}
+            </div>
+            {% for item in alarm_rules %}
+              {{ list_link(url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='rules', rule_id=item.id), selected_rule and selected_rule.id == item.id, item.alarm_id, (item.category or '-') ~ ' / ' ~ (item.default_severity|severity_label)) }}
+            {% else %}
+              <div class="soft-note" style="margin:0;">当前模板还没有告警规则。</div>
             {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  {% else %}
-    <div class="soft-note">当前没有可用的设备模板。</div>
-  {% endif %}
+          </section>
+
+          <section class="card">
+            {% if can_manage_templates and create_mode %}
+              <h3 style="margin-top:0;">新增告警规则</h3>
+              <form method="post" action="{{ url_for('web.create_alarm_rule') }}" class="form-grid">
+                <input type="hidden" name="profile_code" value="{{ selected_profile.profile_code }}">
+                <label><div class="muted">告警 ID</div><input type="text" name="alarm_id"></label>
+                <label>
+                  <div class="muted">默认级别</div>
+                  <select name="default_severity">
+                    {% for value, label in severity_options %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                  </select>
+                </label>
+                <label><div class="muted">分类</div><input type="text" name="category"></label>
+                <label><input type="checkbox" name="should_create_active" checked> 生成活动告警</label>
+                <label><input type="checkbox" name="should_popup"> 触发弹窗</label>
+                <label class="full"><div class="muted">说明</div><input type="text" name="description"></label>
+                <div class="full">
+                  <button type="submit">创建规则</button>
+                  <a class="button secondary" href="{{ url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='rules') }}">取消</a>
+                </div>
+              </form>
+            {% elif selected_rule %}
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                <h3 style="margin:0;">编辑告警规则</h3>
+                {% if can_manage_templates %}
+                  <form method="post" action="{{ url_for('web.delete_alarm_rule', rule_id=selected_rule.id) }}" onsubmit="return confirm('确认删除该告警规则？')">
+                    <button class="danger" type="submit">删除</button>
+                  </form>
+                {% endif %}
+              </div>
+              <form method="post" action="{{ url_for('web.update_alarm_rule', rule_id=selected_rule.id) }}" class="form-grid" style="margin-top:14px;">
+                <label><div class="muted">告警 ID</div><input type="text" name="alarm_id" value="{{ selected_rule.alarm_id }}"></label>
+                <label>
+                  <div class="muted">默认级别</div>
+                  <select name="default_severity">
+                    {% for value, label in severity_options %}<option value="{{ value }}" {% if selected_rule.default_severity == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                  </select>
+                </label>
+                <label><div class="muted">分类</div><input type="text" name="category" value="{{ selected_rule.category or '' }}"></label>
+                <label><input type="checkbox" name="should_create_active" {% if selected_rule.should_create_active %}checked{% endif %}> 生成活动告警</label>
+                <label><input type="checkbox" name="should_popup" {% if selected_rule.should_popup %}checked{% endif %}> 触发弹窗</label>
+                <label class="full"><div class="muted">说明</div><input type="text" name="description" value="{{ selected_rule.description }}"></label>
+                <div class="full"><button type="submit">保存告警规则</button></div>
+              </form>
+            {% else %}
+              <div class="soft-note" style="margin:0;">先从左侧选择一条规则，或新增一条规则。</div>
+            {% endif %}
+          </section>
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="soft-note">当前没有可用的设备模板。</div>
+    {% endif %}
+  </div>
 {% endblock %}

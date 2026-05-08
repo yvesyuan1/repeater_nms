@@ -32,6 +32,8 @@
   - 首页总览已补充“查看详情”入口
   - Trap 列表与首页最近 Trap 已补充详情页入口
   - Trap 详情页已支持查看翻译结果、基础字段和原始 Trap JSON
+  - 设备模板页已从“整页堆叠表单”重构为“标签页 + 左侧列表 + 右侧编辑面板”布局
+  - 本地 collector 已允许在 Redis 不可用时降级运行，继续写 MySQL/SQLite 采集结果，不再因 Redis 连接失败整体退出
 
 ## 待办事项
 
@@ -49,11 +51,13 @@
 - `172.25.22.6` 的真实 SNMP 返回值会影响首页和详情页的展示内容，当前页面已按真实轮询结果展示
 - 当前只对部分核心状态配置了默认正常判断；未配置判断规则的指标会显示“未知”
 - 当前 `repeater_mib_nodes.oid/name` 与 `repeater_mib_enums.enum_name+code` 仍是全局唯一约束，不支持跨模板重复定义同名节点/枚举；如后续要彻底放开，需要单独做约束迁移
+- 本地没有 Redis 服务时，SSE 与 Redis 缓存链路不会生效，但 collector 会继续执行采集并写库
 
 ## 最近一次部署状态
 
 - 本地试运行成功，Web 地址：`http://127.0.0.1:5000`
 - 本地 `poll-once` 成功，当前按策略采集 `8` 个核心状态项
+- 本地 collector 已恢复持续采集，最近一次采集时间已推进到 `2026-05-08 09:46`（Asia/Shanghai）
 - 本地测试通过：
   - `pytest tests/test_web_app.py tests/test_trap_parser.py tests/test_db_init.py`
   - 结果：`9 passed`

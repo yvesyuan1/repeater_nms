@@ -153,9 +153,12 @@ def _int_form(name: str, default: int, *, minimum: int | None = None) -> int:
     return value
 
 
-def _redirect_profile_page(profile_code: str | None = None):
+def _redirect_profile_page(profile_code: str | None = None, **query):
+    params = {key: value for key, value in query.items() if value not in (None, "", False)}
     if profile_code:
-        return redirect(url_for("web.mib_nodes", profile_code=profile_code))
+        params["profile_code"] = profile_code
+    if params:
+        return redirect(url_for("web.mib_nodes", **params))
     return redirect(url_for("web.mib_nodes"))
 
 
@@ -663,6 +666,8 @@ def mib_nodes():
     session = get_db_session()
     profiles = session.execute(select(DeviceProfile).order_by(DeviceProfile.vendor.asc(), DeviceProfile.model.asc())).scalars().all()
     selected_code = request.args.get("profile_code", "").strip() or (profiles[0].profile_code if profiles else DEFAULT_PROFILE_CODE)
+    active_tab = request.args.get("tab", "").strip() or "profile"
+    create_mode = request.args.get("mode", "").strip() == "create"
     selected_profile = next((item for item in profiles if item.profile_code == selected_code), None)
     nodes = session.execute(
         select(MibNode)
@@ -678,16 +683,30 @@ def mib_nodes():
     alarm_rules = session.execute(
         select(AlarmRule).where(AlarmRule.profile_code == selected_code).order_by(AlarmRule.category.asc(), AlarmRule.alarm_id.asc())
     ).scalars().all()
+    selected_strategy_id = request.args.get("strategy_id", type=int)
+    selected_node_id = request.args.get("node_id", type=int)
+    selected_enum_id = request.args.get("enum_id", type=int)
+    selected_rule_id = request.args.get("rule_id", type=int)
+    selected_strategy = next((item for item in strategies if item.id == selected_strategy_id), strategies[0] if strategies else None)
+    selected_node = next((item for item in nodes if item.id == selected_node_id), nodes[0] if nodes else None)
+    selected_enum = next((item for item in enums if item.id == selected_enum_id), enums[0] if enums else None)
+    selected_rule = next((item for item in alarm_rules if item.id == selected_rule_id), alarm_rules[0] if alarm_rules else None)
     return render_template(
         "mib_nodes.html",
         **_base_context(
             page_name="设备模板",
             profiles=profiles,
             selected_profile=selected_profile,
+            active_tab=active_tab,
+            create_mode=create_mode,
             nodes=nodes,
             strategies=strategies,
             enums=enums,
             alarm_rules=alarm_rules,
+            selected_strategy=selected_strategy,
+            selected_node=selected_node,
+            selected_enum=selected_enum,
+            selected_rule=selected_rule,
             judge_type_options=[
                 ("", "不做判断"),
                 ("enum_equals", "枚举值匹配"),
@@ -753,7 +772,7 @@ def create_mib_profile():
     )
     session.commit()
     flash("设备模板已创建。", "success")
-    return _redirect_profile_page(profile.profile_code)
+    return _redirect_profile_page(profile.profile_code, tab="profile")
 
 
 @web_bp.post("/mib-nodes/profiles/<profile_code>")
@@ -782,7 +801,7 @@ def update_mib_profile(profile_code: str):
     )
     session.commit()
     flash("设备模板配置已更新。", "success")
-    return _redirect_profile_page(profile.profile_code)
+    return _redirect_profile_page(profile.profile_code, tab="profile")
 
 
 @web_bp.post("/mib-nodes/profiles/<profile_code>/delete")
@@ -793,16 +812,16 @@ def delete_mib_profile(profile_code: str):
     profile = session.execute(select(DeviceProfile).where(DeviceProfile.profile_code == profile_code)).scalar_one_or_none()
     if profile is None:
         flash("设备模板不存在。", "error")
-        return _redirect_profile_page()
+        return _redirect_profile_page(tab="profile")
     if profile.is_builtin:
         flash("内置设备模板不允许删除。", "error")
-        return _redirect_profile_page(profile.profile_code)
+        return _redirect_profile_page(profile.profile_code, tab="profile")
     if session.execute(select(Device.id).where(Device.device_profile_code == profile_code).limit(1)).scalar_one_or_none() is not None:
         flash("仍有设备使用该模板，不能删除。", "error")
-        return _redirect_profile_page(profile.profile_code)
+        return _redirect_profile_page(profile.profile_code, tab="profile")
     if session.execute(select(TrapEvent.id).where(TrapEvent.profile_code == profile_code).limit(1)).scalar_one_or_none() is not None:
         flash("该模板已有 Trap 历史记录，不能删除。", "error")
-        return _redirect_profile_page(profile.profile_code)
+        return _redirect_profile_page(profile.profile_code, tab="profile")
 
     session.query(PollingStrategy).filter(PollingStrategy.profile_code == profile_code).delete()
     session.query(AlarmRule).filter(AlarmRule.profile_code == profile_code).delete()
@@ -820,7 +839,7 @@ def delete_mib_profile(profile_code: str):
     session.delete(profile)
     session.commit()
     flash("设备模板已删除。", "success")
-    return _redirect_profile_page()
+    return _redirect_profile_page(tab="profile")
 
 
 @web_bp.post("/mib-nodes/strategies")
@@ -832,7 +851,7 @@ def create_polling_strategy():
     profile = session.execute(select(DeviceProfile).where(DeviceProfile.profile_code == profile_code)).scalar_one_or_none()
     if profile is None:
         flash("设备模板不存在。", "error")
-        return _redirect_profile_page()
+        return _redirect_profile_page(tab="strategies")
 
     mib_node_id_raw = request.form.get("mib_node_id", "").strip()
     mib_node = None
@@ -840,7 +859,7 @@ def create_polling_strategy():
         mib_node = session.get(MibNode, int(mib_node_id_raw))
         if mib_node is None or mib_node.profile_code != profile_code:
             flash("采集项关联的 MIB 节点不存在。", "error")
-            return _redirect_profile_page(profile_code)
+            return _redirect_profile_page(profile_code, tab="strategies", mode="create")
 
     strategy = PollingStrategy(
         profile_code=profile_code,
@@ -858,7 +877,7 @@ def create_polling_strategy():
     _strategy_from_form(strategy, mib_node=mib_node)
     if not strategy.oid or not strategy.node_name:
         flash("采集策略必须填写节点名和 OID。", "error")
-        return _redirect_profile_page(profile_code)
+        return _redirect_profile_page(profile_code, tab="strategies", mode="create")
 
     session.add(strategy)
     try:
@@ -866,7 +885,7 @@ def create_polling_strategy():
     except IntegrityError:
         session.rollback()
         flash("同一模板下节点名重复，无法创建采集策略。", "error")
-        return _redirect_profile_page(profile_code)
+        return _redirect_profile_page(profile_code, tab="strategies", mode="create")
     log_operation(
         session,
         user_id=current_user.id,
@@ -878,7 +897,7 @@ def create_polling_strategy():
     )
     session.commit()
     flash("采集策略已创建。", "success")
-    return _redirect_profile_page(profile_code)
+    return _redirect_profile_page(profile_code, tab="strategies", strategy_id=strategy.id)
 
 
 @web_bp.post("/mib-nodes/strategies/<int:strategy_id>")
@@ -889,7 +908,7 @@ def update_polling_strategy(strategy_id: int):
     strategy = session.get(PollingStrategy, strategy_id)
     if strategy is None:
         flash("采集策略不存在。", "error")
-        return _redirect_profile_page()
+        return _redirect_profile_page(tab="strategies")
 
     mib_node_id_raw = request.form.get("mib_node_id", "").strip()
     mib_node = None
@@ -897,7 +916,7 @@ def update_polling_strategy(strategy_id: int):
         mib_node = session.get(MibNode, int(mib_node_id_raw))
         if mib_node is None or mib_node.profile_code != strategy.profile_code:
             flash("采集项关联的 MIB 节点不存在。", "error")
-            return _redirect_profile_page(strategy.profile_code)
+            return _redirect_profile_page(strategy.profile_code, tab="strategies", strategy_id=strategy.id)
 
     _strategy_from_form(strategy, mib_node=mib_node)
     log_operation(
@@ -914,9 +933,9 @@ def update_polling_strategy(strategy_id: int):
     except IntegrityError:
         session.rollback()
         flash("同一模板下节点名重复，无法保存采集策略。", "error")
-        return _redirect_profile_page(strategy.profile_code)
+        return _redirect_profile_page(strategy.profile_code, tab="strategies", strategy_id=strategy.id)
     flash("采集策略已更新。", "success")
-    return _redirect_profile_page(strategy.profile_code)
+    return _redirect_profile_page(strategy.profile_code, tab="strategies", strategy_id=strategy.id)
 
 
 @web_bp.post("/mib-nodes/strategies/<int:strategy_id>/delete")
@@ -927,7 +946,7 @@ def delete_polling_strategy(strategy_id: int):
     strategy = session.get(PollingStrategy, strategy_id)
     if strategy is None:
         flash("采集策略不存在。", "error")
-        return _redirect_profile_page()
+        return _redirect_profile_page(tab="strategies")
     profile_code = strategy.profile_code
     log_operation(
         session,
@@ -941,7 +960,7 @@ def delete_polling_strategy(strategy_id: int):
     session.delete(strategy)
     session.commit()
     flash("采集策略已删除。", "success")
-    return _redirect_profile_page(profile_code)
+    return _redirect_profile_page(profile_code, tab="strategies")
 
 
 @web_bp.post("/mib-nodes/nodes")
@@ -953,7 +972,7 @@ def create_mib_node():
     profile = session.execute(select(DeviceProfile).where(DeviceProfile.profile_code == profile_code)).scalar_one_or_none()
     if profile is None:
         flash("设备模板不存在。", "error")
-        return _redirect_profile_page()
+        return _redirect_profile_page(tab="nodes")
 
     node = MibNode(
         profile_code=profile_code,
@@ -967,7 +986,7 @@ def create_mib_node():
     _mib_node_from_form(node)
     if not node.oid or not node.name:
         flash("MIB 节点必须填写 OID 和节点名。", "error")
-        return _redirect_profile_page(profile_code)
+        return _redirect_profile_page(profile_code, tab="nodes", mode="create")
 
     session.add(node)
     try:
@@ -975,7 +994,7 @@ def create_mib_node():
     except IntegrityError:
         session.rollback()
         flash("OID 或节点名已存在，当前库暂不支持跨模板重复。", "error")
-        return _redirect_profile_page(profile_code)
+        return _redirect_profile_page(profile_code, tab="nodes", mode="create")
     log_operation(
         session,
         user_id=current_user.id,
@@ -987,7 +1006,7 @@ def create_mib_node():
     )
     session.commit()
     flash("MIB 节点已创建。", "success")
-    return _redirect_profile_page(profile_code)
+    return _redirect_profile_page(profile_code, tab="nodes", node_id=node.id)
 
 
 @web_bp.post("/mib-nodes/nodes/<int:node_id>")
@@ -998,7 +1017,7 @@ def update_mib_node(node_id: int):
     node = session.get(MibNode, node_id)
     if node is None:
         flash("MIB 节点不存在。", "error")
-        return _redirect_profile_page()
+        return _redirect_profile_page(tab="nodes")
 
     _mib_node_from_form(node)
     try:
@@ -1006,7 +1025,7 @@ def update_mib_node(node_id: int):
     except IntegrityError:
         session.rollback()
         flash("OID 或节点名已存在，当前库暂不支持跨模板重复。", "error")
-        return _redirect_profile_page(node.profile_code)
+        return _redirect_profile_page(node.profile_code, tab="nodes", node_id=node.id)
     log_operation(
         session,
         user_id=current_user.id,
@@ -1018,7 +1037,7 @@ def update_mib_node(node_id: int):
     )
     session.commit()
     flash("MIB 节点已更新。", "success")
-    return _redirect_profile_page(node.profile_code)
+    return _redirect_profile_page(node.profile_code, tab="nodes", node_id=node.id)
 
 
 @web_bp.post("/mib-nodes/nodes/<int:node_id>/delete")
@@ -1029,11 +1048,11 @@ def delete_mib_node(node_id: int):
     node = session.get(MibNode, node_id)
     if node is None:
         flash("MIB 节点不存在。", "error")
-        return _redirect_profile_page()
+        return _redirect_profile_page(tab="nodes")
     profile_code = node.profile_code
     if session.execute(select(PollingStrategy.id).where(PollingStrategy.mib_node_id == node.id).limit(1)).scalar_one_or_none() is not None:
         flash("该 MIB 节点仍被采集策略引用，不能删除。", "error")
-        return _redirect_profile_page(profile_code)
+        return _redirect_profile_page(profile_code, tab="nodes", node_id=node.id)
     log_operation(
         session,
         user_id=current_user.id,
@@ -1046,7 +1065,7 @@ def delete_mib_node(node_id: int):
     session.delete(node)
     session.commit()
     flash("MIB 节点已删除。", "success")
-    return _redirect_profile_page(profile_code)
+    return _redirect_profile_page(profile_code, tab="nodes")
 
 
 @web_bp.post("/mib-nodes/enums")
@@ -1057,7 +1076,7 @@ def create_mib_enum():
     profile_code = request.form.get("profile_code", "").strip()
     if session.execute(select(DeviceProfile.id).where(DeviceProfile.profile_code == profile_code)).scalar_one_or_none() is None:
         flash("设备模板不存在。", "error")
-        return _redirect_profile_page()
+        return _redirect_profile_page(tab="enums")
 
     enum_name = request.form.get("enum_name", "").strip()
     label = request.form.get("label", "").strip()
@@ -1065,7 +1084,7 @@ def create_mib_enum():
     code = _int_form("code", 0)
     if not enum_name or not label or not description:
         flash("枚举名称、值标签和说明不能为空。", "error")
-        return _redirect_profile_page(profile_code)
+        return _redirect_profile_page(profile_code, tab="enums", mode="create")
 
     enum_item = MibEnum(
         profile_code=profile_code,
@@ -1080,7 +1099,7 @@ def create_mib_enum():
     except IntegrityError:
         session.rollback()
         flash("同名枚举值已存在，当前库暂不支持跨模板重复。", "error")
-        return _redirect_profile_page(profile_code)
+        return _redirect_profile_page(profile_code, tab="enums", mode="create")
     log_operation(
         session,
         user_id=current_user.id,
@@ -1092,7 +1111,7 @@ def create_mib_enum():
     )
     session.commit()
     flash("枚举已创建。", "success")
-    return _redirect_profile_page(profile_code)
+    return _redirect_profile_page(profile_code, tab="enums", enum_id=enum_item.id)
 
 
 @web_bp.post("/mib-nodes/enums/<int:enum_id>")
@@ -1103,7 +1122,7 @@ def update_mib_enum(enum_id: int):
     enum_item = session.get(MibEnum, enum_id)
     if enum_item is None:
         flash("枚举不存在。", "error")
-        return _redirect_profile_page()
+        return _redirect_profile_page(tab="enums")
 
     enum_item.enum_name = request.form.get("enum_name", enum_item.enum_name).strip() or enum_item.enum_name
     enum_item.code = _int_form("code", enum_item.code)
@@ -1114,7 +1133,7 @@ def update_mib_enum(enum_id: int):
     except IntegrityError:
         session.rollback()
         flash("同名枚举值已存在，当前库暂不支持跨模板重复。", "error")
-        return _redirect_profile_page(enum_item.profile_code)
+        return _redirect_profile_page(enum_item.profile_code, tab="enums", enum_id=enum_item.id)
     log_operation(
         session,
         user_id=current_user.id,
@@ -1126,7 +1145,7 @@ def update_mib_enum(enum_id: int):
     )
     session.commit()
     flash("枚举已更新。", "success")
-    return _redirect_profile_page(enum_item.profile_code)
+    return _redirect_profile_page(enum_item.profile_code, tab="enums", enum_id=enum_item.id)
 
 
 @web_bp.post("/mib-nodes/enums/<int:enum_id>/delete")
@@ -1137,7 +1156,7 @@ def delete_mib_enum(enum_id: int):
     enum_item = session.get(MibEnum, enum_id)
     if enum_item is None:
         flash("枚举不存在。", "error")
-        return _redirect_profile_page()
+        return _redirect_profile_page(tab="enums")
     profile_code = enum_item.profile_code
     log_operation(
         session,
@@ -1151,7 +1170,7 @@ def delete_mib_enum(enum_id: int):
     session.delete(enum_item)
     session.commit()
     flash("枚举已删除。", "success")
-    return _redirect_profile_page(profile_code)
+    return _redirect_profile_page(profile_code, tab="enums")
 
 
 @web_bp.post("/mib-nodes/alarm-rules")
@@ -1162,7 +1181,7 @@ def create_alarm_rule():
     profile_code = request.form.get("profile_code", "").strip()
     if session.execute(select(DeviceProfile.id).where(DeviceProfile.profile_code == profile_code)).scalar_one_or_none() is None:
         flash("设备模板不存在。", "error")
-        return _redirect_profile_page()
+        return _redirect_profile_page(tab="rules")
 
     rule = AlarmRule(
         profile_code=profile_code,
@@ -1175,7 +1194,7 @@ def create_alarm_rule():
     _alarm_rule_from_form(rule)
     if not rule.alarm_id:
         flash("告警 ID 不能为空。", "error")
-        return _redirect_profile_page(profile_code)
+        return _redirect_profile_page(profile_code, tab="rules", mode="create")
     session.add(rule)
     session.flush()
     log_operation(
@@ -1189,7 +1208,7 @@ def create_alarm_rule():
     )
     session.commit()
     flash("告警规则已创建。", "success")
-    return _redirect_profile_page(profile_code)
+    return _redirect_profile_page(profile_code, tab="rules", rule_id=rule.id)
 
 
 @web_bp.post("/mib-nodes/alarm-rules/<int:rule_id>")
@@ -1200,7 +1219,7 @@ def update_alarm_rule(rule_id: int):
     rule = session.get(AlarmRule, rule_id)
     if rule is None:
         flash("告警规则不存在。", "error")
-        return _redirect_profile_page()
+        return _redirect_profile_page(tab="rules")
     _alarm_rule_from_form(rule)
     log_operation(
         session,
@@ -1213,7 +1232,7 @@ def update_alarm_rule(rule_id: int):
     )
     session.commit()
     flash("告警规则已更新。", "success")
-    return _redirect_profile_page(rule.profile_code)
+    return _redirect_profile_page(rule.profile_code, tab="rules", rule_id=rule.id)
 
 
 @web_bp.post("/mib-nodes/alarm-rules/<int:rule_id>/delete")
@@ -1224,7 +1243,7 @@ def delete_alarm_rule(rule_id: int):
     rule = session.get(AlarmRule, rule_id)
     if rule is None:
         flash("告警规则不存在。", "error")
-        return _redirect_profile_page()
+        return _redirect_profile_page(tab="rules")
     profile_code = rule.profile_code
     log_operation(
         session,
@@ -1238,7 +1257,7 @@ def delete_alarm_rule(rule_id: int):
     session.delete(rule)
     session.commit()
     flash("告警规则已删除。", "success")
-    return _redirect_profile_page(profile_code)
+    return _redirect_profile_page(profile_code, tab="rules")
 
 
 @web_bp.get("/traps")
