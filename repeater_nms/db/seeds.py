@@ -7,13 +7,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from werkzeug.security import generate_password_hash
 
-from repeater_nms.db.models import AlarmRule, DeviceProfile, MibEnum, MibNode, PollingStrategy, User
+from repeater_nms.db.models import AlarmRule, DeviceProfile, MibEnum, MibNode, PollingStrategy, SnmpControlTemplate, User
 from repeater_nms.db.seed_data import (
     ALARM_RULE_SEEDS,
     DEVICE_PROFILE_SEEDS,
     MIB_ENUM_SEEDS,
     MIB_NODE_SEEDS,
     POLLING_STRATEGY_SEEDS,
+    SNMP_CONTROL_SEEDS,
 )
 
 
@@ -110,6 +111,15 @@ def seed_alarm_rules(session: Session) -> SeedStats:
     return stats
 
 
+def seed_snmp_control_templates(session: Session) -> SeedStats:
+    stats = SeedStats()
+    for item in SNMP_CONTROL_SEEDS:
+        lookup = {"profile_code": item["profile_code"], "oid_name": item["oid_name"]}
+        values = {key: value for key, value in item.items() if key not in {"profile_code", "oid_name"}}
+        _apply_stats(stats, _upsert_one(session, SnmpControlTemplate, lookup, values))
+    return stats
+
+
 def ensure_admin_user(session: Session, username: str, admin_password: str | None) -> SeedStats:
     stats = SeedStats()
     admin = session.execute(select(User).filter_by(username=username)).scalar_one_or_none()
@@ -145,6 +155,7 @@ def seed_everything(session: Session, admin_username: str, admin_password: str |
         "device_profiles": seed_device_profiles(session),
         "mib_nodes": seed_mib_nodes(session),
         "mib_enums": seed_mib_enums(session),
+        "snmp_controls": seed_snmp_control_templates(session),
         "polling_strategies": seed_polling_strategies(session),
         "alarm_rules": seed_alarm_rules(session),
         "admin_user": ensure_admin_user(session, admin_username, admin_password),

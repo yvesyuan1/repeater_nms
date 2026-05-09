@@ -2,7 +2,7 @@
 
 ## 需求说明
 
-`repeater-nms` 用于 10G IPVB 中继器 RX10 的网管开发。第一版目标覆盖设备管理、SNMP GET 采集、SNMP Trap 实时接收展示、告警管理、基础 Web 页面和部署能力。
+`repeater-nms` 用于 10G IPVB 中继器 BHRX10 的网管开发。当前目标覆盖设备管理、SNMP 控制、SNMP Trap 实时接收展示、事件中心、基础 Web 页面和部署能力。
 
 ## 第一版范围
 
@@ -11,7 +11,7 @@
 - RX10 内置 MIB/OID 展示
 - SNMP v2c GET 轮询 APS/DFP 核心状态
 - SNMP v2 Trap 接收、保存、翻译、拆分、归一化
-- Trap 实时页面，基于 SSE 展示最近 100 条事件
+- Trap 日志页面，基于 SSE 展示最近 100 条原始事件
 - 活动告警、历史告警、确认、备注、弹窗通知
 - MySQL 持久化与 Redis 实时分发
 - Nginx、Gunicorn、systemd 部署

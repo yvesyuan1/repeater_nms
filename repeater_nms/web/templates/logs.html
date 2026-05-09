@@ -1,32 +1,46 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <table>
-    <thead>
-      <tr>
-        <th>时间</th>
-        <th>用户</th>
-        <th>动作</th>
-        <th>目标类型</th>
-        <th>目标 ID</th>
-        <th>来源 IP</th>
-        <th>详情</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for item in logs %}
+  <style>
+    .logs-table {
+      min-width: 860px;
+    }
+    .logs-table td:last-child {
+      max-width: 28rem;
+      color: var(--muted);
+      word-break: break-word;
+    }
+  </style>
+
+  <div class="soft-note">操作日志按时间倒序展示，便于回溯登录、设备调整、SNMP 控制写入、模板维护和事件确认等关键动作。</div>
+  <div class="table-scroll">
+    <table class="logs-table">
+      <thead>
         <tr>
-          <td>{{ item.created_at|dt }}</td>
-          <td>{{ item.username_snapshot or '-' }}</td>
-          <td>{{ item.action }}</td>
-          <td>{{ item.target_type or '-' }}</td>
-          <td>{{ item.target_id or '-' }}</td>
-          <td>{{ item.source_ip or '-' }}</td>
-          <td>{{ item.details_json or '-' }}</td>
+          <th>时间</th>
+          <th>用户</th>
+          <th>动作</th>
+          <th>目标类型</th>
+          <th>目标 ID</th>
+          <th>来源 IP</th>
+          <th>详情</th>
         </tr>
-      {% else %}
-        <tr><td colspan="7">暂无操作日志。</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {% for item in logs %}
+          <tr>
+            <td>{{ item.created_at|dt }}</td>
+            <td>{{ item.username_snapshot or '-' }}</td>
+            <td>{{ item.action }}</td>
+            <td>{{ item.target_type or '-' }}</td>
+            <td>{{ item.target_id or '-' }}</td>
+            <td>{{ item.source_ip or '-' }}</td>
+            <td>{{ item.details_json or '-' }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7">暂无操作日志。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 {% endblock %}

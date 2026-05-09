@@ -6,8 +6,8 @@ from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import Session
 
 from repeater_nms.db.init_db import EXPECTED_TABLES, initialize_database
-from repeater_nms.db.models import AlarmRule, MibEnum, MibNode, User
-from repeater_nms.db.seed_data import ALARM_RULE_SEEDS, MIB_ENUM_SEEDS, MIB_NODE_SEEDS
+from repeater_nms.db.models import AlarmRule, MibEnum, MibNode, SnmpControlTemplate, User
+from repeater_nms.db.seed_data import ALARM_RULE_SEEDS, MIB_ENUM_SEEDS, MIB_NODE_SEEDS, SNMP_CONTROL_SEEDS
 from repeater_nms.db.session import reset_engine_cache
 
 
@@ -32,6 +32,7 @@ def test_initialize_database_creates_expected_tables_and_seeds(tmp_path: Path) -
         assert session.scalar(select(User).where(User.username == "admin")) is not None
         assert session.query(MibNode).count() == len(MIB_NODE_SEEDS)
         assert session.query(MibEnum).count() == len(MIB_ENUM_SEEDS)
+        assert session.query(SnmpControlTemplate).count() == len(SNMP_CONTROL_SEEDS)
         assert session.query(AlarmRule).count() == len(ALARM_RULE_SEEDS)
 
 

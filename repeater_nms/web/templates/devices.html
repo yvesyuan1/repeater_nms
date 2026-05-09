@@ -1,13 +1,47 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <div class="grid" style="grid-template-columns: 420px 1fr;">
+  <style>
+    .device-page {
+      display: grid;
+      grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .device-form-card {
+      position: sticky;
+      top: 24px;
+    }
+    .device-table {
+      min-width: 860px;
+    }
+    .device-name {
+      font-weight: 700;
+      color: var(--text);
+    }
+    .device-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    @media (max-width: 1080px) {
+      .device-page {
+        grid-template-columns: 1fr;
+      }
+      .device-form-card {
+        position: static;
+      }
+    }
+  </style>
+
+  <div class="device-page">
     {% if current_user.role in ['admin', 'operator'] %}
-      <section class="card">
+      <section class="card device-form-card">
         <h3 style="margin-top:0;">新增设备</h3>
+        <div class="soft-note">录入基础地址、模板和 SNMP 参数后，设备即可进入 Trap 监听与详情页实时控制链路。</div>
         <form method="post" class="form-grid">
           <label><div class="muted">设备名称</div><input type="text" name="name" required></label>
-          <label><div class="muted">IP</div><input type="text" name="ip" required></label>
+          <label><div class="muted">管理 IP</div><input type="text" name="ip" required></label>
           <label>
             <div class="muted">设备模板</div>
             <select name="device_profile_code">
@@ -22,53 +56,63 @@
             <div class="muted">SNMP 版本</div>
             <select name="snmp_version"><option value="v2c">v2c</option></select>
           </label>
-          <label><div class="muted">读团体字</div><input type="text" name="read_community" required></label>
-          <label><div class="muted">写团体字</div><input type="text" name="write_community"></label>
+          <label><div class="muted">读 community</div><input type="text" name="read_community" required></label>
+          <label><div class="muted">写 community</div><input type="text" name="write_community"></label>
           <label class="full"><div class="muted">备注</div><textarea name="notes"></textarea></label>
-          <label class="full"><input type="checkbox" name="is_enabled" checked> 启用设备</label>
+          <label class="full bool-field"><input type="checkbox" name="is_enabled" checked> 启用设备</label>
           <div class="full"><button type="submit">创建设备</button></div>
         </form>
       </section>
     {% endif %}
+
     <section class="card">
       <h3 style="margin-top:0;">设备列表</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>名称</th>
-            <th>IP</th>
-            <th>模板</th>
-            <th>状态</th>
-            <th>轮询状态</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in devices %}
-            {% set profile = profile_map.get(item.device_profile_code) %}
+      <div class="soft-note">设备名称和“进入详情”按钮都可直达设备详情页，详情页是状态查看、SNMP 控制和事件追踪的核心入口。</div>
+      <div class="table-scroll">
+        <table class="device-table">
+          <thead>
             <tr>
-              <td><a href="{{ url_for('web.device_detail', device_id=item.id) }}">{{ item.name }}</a></td>
-              <td>{{ item.ip }}</td>
-              <td>{{ profile.vendor if profile else '-' }} {{ profile.model if profile else item.device_profile_code }}</td>
-              <td><span class="tag {{ 'ok' if item.is_enabled else 'error' }}">{{ '启用' if item.is_enabled else '停用' }}</span></td>
-              <td>
-                <span class="tag {{ item.last_poll_status or '' }}">{{ item.last_poll_status|poll_status_label }}</span>
-                <div class="muted" style="margin-top:4px;">{{ item.last_poll_status|poll_status_desc(item.last_poll_message) }}</div>
-              </td>
-              <td>
-                <a class="button secondary" href="{{ url_for('web.edit_device', device_id=item.id) }}">编辑</a>
-                {% if current_user.role in ['admin', 'operator'] %}
-                  <form class="inline" method="post" action="{{ url_for('web.toggle_device', device_id=item.id) }}">
-                    <button class="secondary" type="submit">{{ '停用' if item.is_enabled else '启用' }}</button>
-                  </form>
-                {% endif %}
-              </td>
+              <th>设备</th>
+              <th>模板</th>
+              <th>状态</th>
+              <th>最近通信</th>
+              <th>最近结果</th>
+              <th>操作</th>
             </tr>
-          {% else %}
-            <tr><td colspan="6">暂无设备。</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for item in devices %}
+              {% set profile = profile_map.get(item.device_profile_code) %}
+              <tr>
+                <td>
+                  <div><a class="device-name" href="{{ url_for('web.device_detail', device_id=item.id) }}">{{ item.name }}</a></div>
+                  <div class="muted">{{ item.ip }}</div>
+                </td>
+                <td>{{ profile.vendor if profile else '-' }} {{ profile.model if profile else item.device_profile_code }}</td>
+                <td><span class="tag {{ 'ok' if item.is_enabled else 'error' }}">{{ '启用' if item.is_enabled else '停用' }}</span></td>
+                <td>{{ item.last_online_at|dt }}</td>
+                <td>
+                  <span class="tag {{ item.last_poll_status or '' }}">{{ item.last_poll_status|poll_status_label }}</span>
+                  <div class="muted" style="margin-top:6px;">{{ item.last_poll_message or '-' }}</div>
+                </td>
+                <td>
+                  <div class="device-actions">
+                    <a class="button secondary" href="{{ url_for('web.device_detail', device_id=item.id) }}">进入详情</a>
+                    <a class="button secondary" href="{{ url_for('web.edit_device', device_id=item.id) }}">编辑</a>
+                    {% if current_user.role in ['admin', 'operator'] %}
+                      <form class="inline" method="post" action="{{ url_for('web.toggle_device', device_id=item.id) }}">
+                        <button class="secondary" type="submit">{{ '停用' if item.is_enabled else '启用' }}</button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="6">暂无设备。</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </section>
   </div>
 {% endblock %}

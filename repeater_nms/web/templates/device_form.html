@@ -5,7 +5,7 @@
     <h3 style="margin-top:0;">编辑设备</h3>
     <form method="post" class="form-grid">
       <label><div class="muted">设备名称</div><input type="text" name="name" value="{{ device.name }}" required></label>
-      <label><div class="muted">IP</div><input type="text" name="ip" value="{{ device.ip }}" required></label>
+      <label><div class="muted">管理 IP</div><input type="text" name="ip" value="{{ device.ip }}" required></label>
       <label>
         <div class="muted">设备模板</div>
         <select name="device_profile_code">
@@ -20,10 +20,10 @@
         <div class="muted">SNMP 版本</div>
         <select name="snmp_version"><option value="v2c" {% if device.snmp_version == 'v2c' %}selected{% endif %}>v2c</option></select>
       </label>
-      <label><div class="muted">读团体字（留空保持当前：{{ device.read_community|masked }}）</div><input type="text" name="read_community"></label>
-      <label><div class="muted">写团体字（留空保持当前：{{ device.write_community|masked }}）</div><input type="text" name="write_community"></label>
+      <label><div class="muted">读 community（留空保持当前：{{ device.read_community|masked }}）</div><input type="text" name="read_community"></label>
+      <label><div class="muted">写 community（留空保持当前：{{ device.write_community|masked }}）</div><input type="text" name="write_community"></label>
       <label class="full"><div class="muted">备注</div><textarea name="notes">{{ device.notes or '' }}</textarea></label>
-      <label class="full"><input type="checkbox" name="is_enabled" {% if device.is_enabled %}checked{% endif %}> 启用设备</label>
+      <label class="full bool-field"><input type="checkbox" name="is_enabled" {% if device.is_enabled %}checked{% endif %}> 启用设备</label>
       <div class="full"><button type="submit">保存修改</button></div>
     </form>
   </section>

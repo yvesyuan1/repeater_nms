@@ -44,7 +44,7 @@ class DeviceProfile(TimestampMixin, Base):
     vendor: Mapped[str] = mapped_column(String(128), nullable=False)
     model: Mapped[str] = mapped_column(String(128), nullable=False)
     category: Mapped[str] = mapped_column(String(64), nullable=False)
-    parser_key: Mapped[str] = mapped_column(String(64), default="bohui_rx10", nullable=False)
+    parser_key: Mapped[str] = mapped_column(String(64), default="jscn_bhrx10", nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     is_builtin: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
@@ -59,7 +59,7 @@ class Device(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     ip: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
-    device_profile_code: Mapped[str] = mapped_column(String(64), index=True, default="bohui_rx10", nullable=False)
+    device_profile_code: Mapped[str] = mapped_column(String(64), index=True, default="jscn_bhrx10", nullable=False)
     snmp_port: Mapped[int] = mapped_column(Integer, default=161, nullable=False)
     trap_port: Mapped[int] = mapped_column(Integer, default=1162, nullable=False)
     snmp_version: Mapped[str] = mapped_column(String(16), default="v2c", nullable=False)
@@ -81,7 +81,7 @@ class MibNode(TimestampMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    profile_code: Mapped[str] = mapped_column(String(64), index=True, default="bohui_rx10", nullable=False)
+    profile_code: Mapped[str] = mapped_column(String(64), index=True, default="jscn_bhrx10", nullable=False)
     oid: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     name_zh: Mapped[str | None] = mapped_column(String(128))
@@ -104,7 +104,7 @@ class MibEnum(TimestampMixin, Base):
     __table_args__ = (UniqueConstraint("enum_name", "code", name="uq_repeater_mib_enums_name_code"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    profile_code: Mapped[str] = mapped_column(String(64), index=True, default="bohui_rx10", nullable=False)
+    profile_code: Mapped[str] = mapped_column(String(64), index=True, default="jscn_bhrx10", nullable=False)
     enum_name: Mapped[str] = mapped_column(String(64), nullable=False)
     code: Mapped[int] = mapped_column(Integer, nullable=False)
     label: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -210,6 +210,33 @@ class DeviceLatestValue(Base):
     )
 
 
+class SnmpControlTemplate(TimestampMixin, Base):
+    __tablename__ = "repeater_snmp_control_templates"
+    __table_args__ = (
+        UniqueConstraint("profile_code", "oid_name", name="uq_repeater_snmp_control_templates_profile_oid_name"),
+        UniqueConstraint("profile_code", "oid", name="uq_repeater_snmp_control_templates_profile_oid"),
+        Index("ix_repeater_snmp_control_templates_profile_enabled", "profile_code", "enabled"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_code: Mapped[str] = mapped_column(String(64), index=True, default="jscn_bhrx10", nullable=False)
+    oid_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    oid: Mapped[str] = mapped_column(String(255), nullable=False)
+    oid_suffix: Mapped[str | None] = mapped_column(String(64))
+    display_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    access: Mapped[str] = mapped_column(String(32), nullable=False, default="read-only")
+    data_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    value_type: Mapped[str] = mapped_column(String(32), nullable=False, default="text")
+    unit: Mapped[str | None] = mapped_column(String(32))
+    enum_name: Mapped[str | None] = mapped_column(String(64))
+    enum_map_json: Mapped[dict[str, Any] | list[Any] | None] = mapped_column(JSON)
+    normal_rule: Mapped[str | None] = mapped_column(Text)
+    writable: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
 class TrapEvent(Base):
     __tablename__ = "repeater_trap_events"
     __table_args__ = (
@@ -257,7 +284,7 @@ class AlarmRule(TimestampMixin, Base):
     __tablename__ = "repeater_alarm_rules"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    profile_code: Mapped[str] = mapped_column(String(64), index=True, default="bohui_rx10", nullable=False)
+    profile_code: Mapped[str] = mapped_column(String(64), index=True, default="jscn_bhrx10", nullable=False)
     alarm_id: Mapped[str] = mapped_column(String(128), index=True)
     default_severity: Mapped[str] = mapped_column(String(32), nullable=False)
     should_create_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

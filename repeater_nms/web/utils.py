@@ -136,8 +136,8 @@ def format_dt(value: datetime | None) -> str:
     if value is None:
         return "-"
     if value.tzinfo is None:
-        return value.strftime("%Y-%m-%d %H:%M:%S")
-    return value.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(app_timezone()).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def mask_secret(value: str | None) -> str:

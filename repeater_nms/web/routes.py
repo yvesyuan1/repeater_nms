@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import datetime, timezone
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
 
@@ -24,6 +25,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from repeater_nms.collector.snmp_client import SnmpV2cClient
 from repeater_nms.db.models import (
     ActiveAlarm,
     AlarmAckLog,
@@ -37,6 +39,7 @@ from repeater_nms.db.models import (
     OperationLog,
     PollingStrategy,
     PopupNotification,
+    SnmpControlTemplate,
     TrapEvent,
     User,
 )
@@ -44,8 +47,10 @@ from repeater_nms.db.seed_data import DEFAULT_PROFILE_CODE
 from repeater_nms.web.db import get_db_session
 from repeater_nms.web.extensions import login_manager
 from repeater_nms.web.security import role_required
+from repeater_nms.web.snmp_controls import read_control, request_oid, resolve_enum_options, validate_write_value
 from repeater_nms.web.utils import (
     alarm_description_label,
+    app_timezone,
     build_captcha_svg,
     build_trap_summary,
     compute_device_overview_status,
@@ -173,6 +178,13 @@ def _per_page_number(default: int = 30, allowed: tuple[int, ...] = (20, 30, 50, 
     return value if value in allowed else default
 
 
+def _json_form(name: str) -> dict[str, Any] | list[Any] | None:
+    raw = request.form.get(name, "").strip()
+    if not raw:
+        return None
+    return json.loads(raw)
+
+
 def _build_page_url(endpoint: str, page: int, **params: Any) -> str:
     payload: dict[str, Any] = {"page": page}
     for key, value in params.items():
@@ -219,6 +231,13 @@ def _redirect_profile_page(profile_code: str | None = None, **query):
     return redirect(url_for("web.mib_nodes"))
 
 
+def _snmp_client() -> SnmpV2cClient:
+    client = current_app.config.get("SNMP_CLIENT")
+    if client is not None:
+        return client
+    return SnmpV2cClient()
+
+
 def _strategy_from_form(strategy: PollingStrategy, *, mib_node: MibNode | None = None) -> None:
     strategy.poll_interval_seconds = _int_form("poll_interval_seconds", strategy.poll_interval_seconds or 60, minimum=5)
     strategy.display_order = _int_form("display_order", strategy.display_order or 100, minimum=1)
@@ -262,6 +281,24 @@ def _mib_node_from_form(node: MibNode) -> None:
     node.is_trap_field = _bool_form("is_trap_field")
     node.is_set_reserved = _bool_form("is_set_reserved")
     node.scalar_suffix_zero = _bool_form("scalar_suffix_zero")
+
+
+def _snmp_control_from_form(control: SnmpControlTemplate) -> None:
+    control.oid_name = request.form.get("oid_name", control.oid_name).strip() or control.oid_name
+    control.oid = request.form.get("oid", control.oid).strip() or control.oid
+    control.oid_suffix = request.form.get("oid_suffix", control.oid_suffix or "").strip() or None
+    control.display_name = request.form.get("display_name", control.display_name).strip() or control.display_name
+    control.description = request.form.get("description", control.description or "").strip() or None
+    control.access = request.form.get("access", control.access).strip() or control.access
+    control.data_type = request.form.get("data_type", control.data_type).strip() or control.data_type
+    control.value_type = request.form.get("value_type", control.value_type).strip() or control.value_type
+    control.unit = request.form.get("unit", control.unit or "").strip() or None
+    control.enum_name = request.form.get("enum_name", control.enum_name or "").strip() or None
+    control.normal_rule = request.form.get("normal_rule", control.normal_rule or "").strip() or None
+    control.writable = _bool_form("writable")
+    control.sort_order = _int_form("sort_order", control.sort_order or 100, minimum=1)
+    control.enabled = _bool_form("enabled")
+    control.enum_map_json = _json_form("enum_map_json")
 
 
 def _alarm_rule_from_form(rule: AlarmRule) -> None:
@@ -316,6 +353,37 @@ def _trap_payload(item: TrapEvent, device: Device | None, profile: DeviceProfile
         "summary_zh": summary_zh,
         "translated_json": item.translated_json,
         "detail_url": url_for("web.trap_detail", trap_id=item.id),
+    }
+
+
+def _trap_group_payload(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    primary = rows[0]
+    summaries: list[str] = []
+    for item in rows:
+        summary = str(item.get("raw_summary") or "").strip()
+        if summary and summary not in summaries:
+            summaries.append(summary)
+    return {
+        "pdu_id": primary.get("pdu_id"),
+        "received_at": primary.get("received_at"),
+        "received_at_iso": primary.get("received_at_iso"),
+        "source_ip": primary.get("source_ip"),
+        "device_id": primary.get("device_id"),
+        "device_name": primary.get("device_name"),
+        "profile_title": primary.get("profile_title"),
+        "trap_type": primary.get("trap_type"),
+        "trap_type_label": primary.get("trap_type_label"),
+        "trap_name": primary.get("trap_name"),
+        "trap_name_label": primary.get("trap_name_label"),
+        "severity": primary.get("severity"),
+        "severity_label": primary.get("severity_label"),
+        "status": primary.get("status"),
+        "status_label": primary.get("status_label"),
+        "summary_zh": primary.get("summary_zh"),
+        "detail_url": primary.get("detail_url"),
+        "row_count": len(rows),
+        "split_rows": rows,
+        "summary_lines": summaries[:6],
     }
 
 
@@ -391,6 +459,115 @@ def _collect_device_overviews(session) -> list[dict[str, Any]]:
             }
         )
     return overviews
+
+
+def _device_payload(device: Device, profile: DeviceProfile | None) -> dict[str, Any]:
+    return {
+        "id": device.id,
+        "name": device.name,
+        "ip": device.ip,
+        "brand": None if profile is None else profile.vendor,
+        "model": None if profile is None else profile.model,
+        "profile_code": device.device_profile_code,
+        "profile_title": profile_title(profile.vendor if profile else None, profile.model if profile else None),
+        "snmp_version": device.snmp_version,
+        "snmp_port": device.snmp_port,
+        "read_community_masked": "已配置" if device.read_community else "未配置",
+        "write_community_masked": "已配置" if device.write_community else "未配置",
+        "is_enabled": device.is_enabled,
+        "notes": device.notes,
+        "last_online_at": format_dt(device.last_online_at),
+        "last_polled_at": format_dt(device.last_polled_at),
+        "last_poll_status": device.last_poll_status,
+        "last_poll_message": device.last_poll_message,
+    }
+
+
+def _severity_rank(value: str | None) -> int:
+    return {"critical": 5, "major": 4, "warning": 3, "minor": 2, "indeterminate": 1, "cleared": 0}.get(value or "", -1)
+
+
+def _local_day_bounds(now: datetime | None = None) -> tuple[datetime, datetime]:
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    local_now = current.astimezone(app_timezone())
+    day_start_local = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end_local = day_start_local + timedelta(days=1)
+    return day_start_local.astimezone(timezone.utc), day_end_local.astimezone(timezone.utc)
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _event_priority(item: dict[str, Any]) -> tuple[int, int, float, int]:
+    event = item["event"]
+    active_alarm = item.get("active_alarm")
+    is_open = bool(active_alarm and active_alarm.is_open)
+    is_unacked = bool(is_open and not active_alarm.is_acknowledged)
+    severity = _severity_rank(event.severity)
+    occurrence_count = 0 if active_alarm is None else int(active_alarm.occurrence_count or 0)
+    occurred_at = _as_utc(event.occurred_at)
+    occurred_ts = occurred_at.timestamp() if occurred_at else 0.0
+    return (
+        2 if is_open and is_unacked else 1 if is_open else 0,
+        severity,
+        occurred_ts,
+        occurrence_count,
+    )
+
+
+def _device_event_payload(
+    item: AlarmEvent,
+    *,
+    active_alarm: ActiveAlarm | None,
+    device_name: str,
+    device_ip: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": item.id,
+        "device_id": item.device_id,
+        "device_name": device_name,
+        "device_ip": device_ip or "-",
+        "alarm_obj": item.alarm_obj,
+        "alarm_id": item.alarm_id,
+        "alarm_description": alarm_description_label(item.alarm_id),
+        "severity": item.severity,
+        "severity_label": severity_label(item.severity),
+        "status": item.status,
+        "status_label": status_label(item.status),
+        "event_type": item.event_type,
+        "message": item.message,
+        "occurred_at": format_dt(item.occurred_at),
+        "occurred_at_iso": item.occurred_at.astimezone(timezone.utc).isoformat() if item.occurred_at else None,
+        "restored_at": None if not active_alarm or active_alarm.is_open else format_dt(active_alarm.closed_at),
+        "state_label": "未恢复" if active_alarm and active_alarm.is_open else "已恢复",
+        "source": "Trap",
+    }
+
+
+def _apply_manual_read_status(device: Device, payloads: list[dict[str, Any]]) -> None:
+    ok_count = sum(1 for item in payloads if item.get("read_status") == "ok")
+    device.last_polled_at = datetime.now(timezone.utc)
+    if ok_count:
+        device.last_online_at = device.last_polled_at
+    if not payloads:
+        device.last_poll_status = "error"
+        device.last_poll_message = "no enabled snmp controls"
+    elif ok_count == len(payloads):
+        device.last_poll_status = "ok"
+        device.last_poll_message = "manual snmp refresh ok"
+    elif ok_count == 0:
+        device.last_poll_status = "error"
+        device.last_poll_message = "manual snmp refresh failed"
+    else:
+        device.last_poll_status = "partial"
+        device.last_poll_message = "manual snmp refresh partial"
 
 
 @web_bp.get("/captcha.svg")
@@ -470,19 +647,70 @@ def logout():
 def dashboard():
     session = get_db_session()
     overviews = _collect_device_overviews(session)
-    trap_rows = session.execute(select(TrapEvent).order_by(TrapEvent.received_at.desc(), TrapEvent.id.desc()).limit(10)).scalars().all()
     devices = _device_map(session)
-    profiles = _profile_map(session)
-    traps = [_trap_payload(item, devices.get(item.device_id) if item.device_id else None, profiles.get(item.profile_code or DEFAULT_PROFILE_CODE)) for item in trap_rows]
+    event_rows = session.execute(select(AlarmEvent).order_by(AlarmEvent.occurred_at.desc(), AlarmEvent.id.desc())).scalars().all()
+    active_alarm_rows = session.execute(select(ActiveAlarm)).scalars().all()
+    active_alarm_map = {item.id: item for item in active_alarm_rows}
+    event_views: list[dict[str, Any]] = []
+    for item in event_rows:
+        device = devices.get(item.device_id)
+        active_alarm = active_alarm_map.get(item.active_alarm_id)
+        payload = _device_event_payload(
+            item,
+            active_alarm=active_alarm,
+            device_name=device.name if device else "未知设备",
+            device_ip=None if device is None else device.ip,
+        )
+        payload["event"] = item
+        payload["active_alarm"] = active_alarm
+        payload["trap_detail_url"] = (
+            url_for("web.trap_detail", trap_id=item.trap_event_id) if item.trap_event_id else None
+        )
+        payload["device_detail_url"] = (
+            url_for("web.device_detail", device_id=device.id) if device else None
+        )
+        payload["is_open"] = bool(active_alarm and active_alarm.is_open)
+        payload["is_unacked"] = bool(active_alarm and active_alarm.is_open and not active_alarm.is_acknowledged)
+        payload["occurrence_count"] = 0 if active_alarm is None else int(active_alarm.occurrence_count or 0)
+        event_views.append(payload)
+    event_views.sort(key=_event_priority, reverse=True)
+    event_views = event_views[:6]
+    active_alarm_total = sum(item["active_alarm_count"] for item in overviews)
+    unacked_alarm_total = sum(1 for item in active_alarm_rows if item.is_open and not item.is_acknowledged)
+    normal_device_total = sum(1 for item in overviews if item["overview_status"] == "normal")
+    abnormal_device_total = len(overviews) - normal_device_total
+    focus_device_total = sum(1 for item in overviews if item["overview_status"] in {"warning", "major", "critical", "poll_error"})
+    day_start_utc, day_end_utc = _local_day_bounds()
+    today_new_event_total = sum(
+        1
+        for item in event_rows
+        if _as_utc(item.occurred_at) and day_start_utc <= _as_utc(item.occurred_at) < day_end_utc
+    )
+    overviews.sort(
+        key=lambda item: (
+            2 if item["overview_status"] in {"critical", "major", "warning", "poll_error"} else 1 if item["overview_status"] == "unknown" else 0,
+            _severity_rank(item["highest_alarm_severity"]),
+            item["active_alarm_count"],
+            item["recent_trap_at"] or "",
+        ),
+        reverse=True,
+    )
     return render_template(
         "dashboard.html",
         **_base_context(
-            page_name="设备运行总览",
+            page_name="总览",
+            page_description="查看设备运行状态、事件态势和重点告警。",
             device_total=len(overviews),
             online_devices=sum(1 for item in overviews if item["device"].is_enabled),
-            active_alarm_total=sum(item["active_alarm_count"] for item in overviews),
+            normal_device_total=normal_device_total,
+            abnormal_device_total=abnormal_device_total,
+            active_alarm_total=active_alarm_total,
+            unacked_alarm_total=unacked_alarm_total,
             device_overviews=overviews,
-            recent_traps=traps,
+            recent_events=event_views,
+            critical_event_total=sum(1 for item in overviews if item["highest_alarm_severity"] in {"critical", "major"}),
+            focus_device_total=focus_device_total,
+            today_new_event_total=today_new_event_total,
         ),
     )
 
@@ -609,7 +837,7 @@ def devices():
     profile_map = _profile_map(session)
     return render_template(
         "devices.html",
-        **_base_context(page_name="设备管理", devices=device_rows, profiles=profiles, profile_map=profile_map),
+        **_base_context(page_name="设备列表", devices=device_rows, profiles=profiles, profile_map=profile_map),
     )
 
 
@@ -621,44 +849,203 @@ def device_detail(device_id: int):
     if device is None:
         return Response("device not found", status=404)
     profile = session.execute(select(DeviceProfile).where(DeviceProfile.profile_code == device.device_profile_code)).scalar_one_or_none()
-    strategies = session.execute(
-        select(PollingStrategy)
-        .where(PollingStrategy.profile_code == device.device_profile_code, PollingStrategy.is_enabled.is_(True))
-        .order_by(PollingStrategy.display_order.asc(), PollingStrategy.id.asc())
+    if request.accept_mimetypes.best == "application/json":
+        return jsonify(_device_payload(device, profile))
+    controls = session.execute(
+        select(SnmpControlTemplate)
+        .where(
+            SnmpControlTemplate.profile_code == device.device_profile_code,
+            SnmpControlTemplate.enabled.is_(True),
+        )
+        .order_by(SnmpControlTemplate.sort_order.asc(), SnmpControlTemplate.id.asc())
     ).scalars().all()
-    latest_values_all = session.execute(
-        select(DeviceLatestValue)
-        .where(DeviceLatestValue.device_id == device.id)
-        .order_by(DeviceLatestValue.category.asc(), DeviceLatestValue.oid_name.asc())
-    ).scalars().all()
-    strategy_map = {item.node_name: item for item in strategies}
-    strategy_rows: list[tuple[int, int, DeviceLatestValue]] = []
-    extra_rows: list[tuple[str, str, DeviceLatestValue]] = []
-    for row in latest_values_all:
-        if row.oid_name in strategy_map:
-            strategy_rows.append((strategy_map[row.oid_name].display_order, row.id, row))
-        elif row.category or row.oid_name_zh:
-            extra_rows.append((row.category or "zzz", row.oid_name or row.oid, row))
-    latest_values = [item for _, _, item in sorted(strategy_rows, key=lambda value: (value[0], value[1]))]
-    latest_values.extend(item for _, _, item in sorted(extra_rows, key=lambda value: (value[0], value[1])))
     recent_traps = session.execute(
         select(TrapEvent).where(TrapEvent.device_id == device.id).order_by(TrapEvent.received_at.desc()).limit(10)
     ).scalars().all()
-    active_alarms = session.execute(
-        select(ActiveAlarm).where(ActiveAlarm.device_id == device.id, ActiveAlarm.is_open.is_(True)).order_by(ActiveAlarm.last_seen_at.desc())
+    recent_events = session.execute(
+        select(AlarmEvent).where(AlarmEvent.device_id == device.id).order_by(AlarmEvent.occurred_at.desc(), AlarmEvent.id.desc()).limit(8)
     ).scalars().all()
+    active_alarms = session.execute(select(ActiveAlarm).where(ActiveAlarm.device_id == device.id)).scalars().all()
+    active_alarm_map = {item.id: item for item in active_alarms}
     trap_views = [_trap_payload(item, device, profile) for item in recent_traps]
+    event_views = [
+        _device_event_payload(item, active_alarm=active_alarm_map.get(item.active_alarm_id), device_name=device.name)
+        for item in recent_events
+    ]
     return render_template(
         "device_detail.html",
         **_base_context(
-            page_name=f"设备详情 - {device.name}",
+            page_name="设备详情",
             device=device,
             profile=profile,
-            latest_values=latest_values,
+            device_payload=_device_payload(device, profile),
+            snmp_control_count=len(controls),
             recent_traps=trap_views,
-            active_alarms=active_alarms,
+            recent_events=event_views,
         ),
     )
+
+
+@web_bp.get("/api/devices/<int:device_id>")
+@login_required
+def api_device_detail(device_id: int):
+    session = get_db_session()
+    device = session.get(Device, device_id)
+    if device is None:
+        return jsonify({"ok": False, "error": "not_found"}), 404
+    profile = session.execute(select(DeviceProfile).where(DeviceProfile.profile_code == device.device_profile_code)).scalar_one_or_none()
+    return jsonify({"ok": True, "device": _device_payload(device, profile)})
+
+
+@web_bp.get("/api/devices/<int:device_id>/events")
+@login_required
+def api_device_events(device_id: int):
+    session = get_db_session()
+    device = session.get(Device, device_id)
+    if device is None:
+        return jsonify({"ok": False, "error": "not_found"}), 404
+    events = session.execute(
+        select(AlarmEvent).where(AlarmEvent.device_id == device.id).order_by(AlarmEvent.occurred_at.desc(), AlarmEvent.id.desc()).limit(20)
+    ).scalars().all()
+    active_alarm_ids = [item.active_alarm_id for item in events if item.active_alarm_id]
+    active_alarm_map = {}
+    if active_alarm_ids:
+        active_alarm_map = {
+            item.id: item
+            for item in session.execute(select(ActiveAlarm).where(ActiveAlarm.id.in_(active_alarm_ids))).scalars().all()
+        }
+    return jsonify(
+        {
+            "ok": True,
+            "events": [
+                _device_event_payload(item, active_alarm=active_alarm_map.get(item.active_alarm_id), device_name=device.name)
+                for item in events
+            ],
+        }
+    )
+
+
+@web_bp.get("/api/devices/<int:device_id>/snmp-controls")
+@login_required
+def api_device_snmp_controls(device_id: int):
+    session = get_db_session()
+    device = session.get(Device, device_id)
+    if device is None:
+        return jsonify({"ok": False, "error": "not_found"}), 404
+    profile = session.execute(select(DeviceProfile).where(DeviceProfile.profile_code == device.device_profile_code)).scalar_one_or_none()
+    controls = session.execute(
+        select(SnmpControlTemplate)
+        .where(
+            SnmpControlTemplate.profile_code == device.device_profile_code,
+            SnmpControlTemplate.enabled.is_(True),
+        )
+        .order_by(SnmpControlTemplate.sort_order.asc(), SnmpControlTemplate.id.asc())
+    ).scalars().all()
+    client = _snmp_client()
+    payloads = [read_control(session, client, device, control).payload for control in controls]
+    _apply_manual_read_status(device, payloads)
+    session.commit()
+    return jsonify({"ok": True, "controls": payloads, "device": _device_payload(device, profile)})
+
+
+@web_bp.get("/api/devices/<int:device_id>/snmp-controls/<int:control_id>")
+@login_required
+def api_device_snmp_control(device_id: int, control_id: int):
+    session = get_db_session()
+    device = session.get(Device, device_id)
+    if device is None:
+        return jsonify({"ok": False, "error": "not_found"}), 404
+    control = session.get(SnmpControlTemplate, control_id)
+    if control is None or control.profile_code != device.device_profile_code or not control.enabled:
+        return jsonify({"ok": False, "error": "control_not_found"}), 404
+    payload = read_control(session, _snmp_client(), device, control).payload
+    _apply_manual_read_status(device, [payload])
+    session.commit()
+    return jsonify({"ok": True, "control": payload})
+
+
+@web_bp.post("/api/devices/<int:device_id>/snmp-controls/<int:control_id>/set")
+@login_required
+@role_required("admin", "operator")
+def api_set_device_snmp_control(device_id: int, control_id: int):
+    session = get_db_session()
+    device = session.get(Device, device_id)
+    if device is None:
+        return jsonify({"ok": False, "error": "not_found"}), 404
+    control = session.get(SnmpControlTemplate, control_id)
+    if control is None or control.profile_code != device.device_profile_code or not control.enabled:
+        return jsonify({"ok": False, "error": "control_not_found"}), 404
+    if control.access != "read-write" or not control.writable:
+        return jsonify({"ok": False, "error": "read_only", "message": "该控制项不允许写入"}), 400
+    if not device.write_community:
+        return jsonify({"ok": False, "error": "missing_write_community", "message": "设备未配置写 community"}), 400
+
+    body = request.get_json(silent=True) or request.form
+    enum_options = resolve_enum_options(session, control)
+    try:
+        target_value = validate_write_value(control, body.get("value"), enum_options)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": "invalid_value", "message": str(exc)}), 400
+
+    client = _snmp_client()
+    before_payload = read_control(session, client, device, control).payload
+    set_result = client.set_oid_sync(
+        device.ip,
+        device.snmp_port,
+        device.write_community,
+        request_oid(control.oid),
+        control.data_type,
+        target_value,
+    )
+    verify_payload = read_control(session, client, device, control).payload
+    _apply_manual_read_status(device, [verify_payload])
+
+    if not set_result.get("ok"):
+        result_code = "set_failed"
+        message = str(set_result.get("error") or "SNMP 写入失败")
+        ok = False
+    elif verify_payload.get("read_status") != "ok":
+        result_code = "verify_failed"
+        message = "写入成功，但回读校验失败"
+        ok = False
+    elif str(verify_payload.get("current_value_raw") or "") != target_value:
+        result_code = "verify_mismatch"
+        message = "写入成功，但读取校验值不一致"
+        ok = False
+    else:
+        result_code = "success"
+        message = "控制成功"
+        ok = True
+
+    log_operation(
+        session,
+        user_id=current_user.id,
+        username_snapshot=current_user.username,
+        action="snmp_set_control",
+        target_type="snmp_control",
+        target_id=str(control.id),
+        details_json={
+            "device_id": device.id,
+            "device_name": device.name,
+            "oid_name": control.oid_name,
+            "oid": control.oid,
+            "old_value": before_payload.get("current_value_raw"),
+            "new_value": target_value,
+            "verify_value": verify_payload.get("current_value_raw"),
+            "result_code": result_code,
+            "message": message,
+        },
+    )
+    session.commit()
+    return jsonify(
+        {
+            "ok": ok,
+            "result_code": result_code,
+            "message": message,
+            "before": before_payload,
+            "verify": verify_payload,
+        }
+    ), (200 if ok else 400)
 
 
 @web_bp.route("/devices/<int:device_id>/edit", methods=["GET", "POST"])
@@ -741,6 +1128,11 @@ def mib_nodes():
     strategies = session.execute(
         select(PollingStrategy).where(PollingStrategy.profile_code == selected_code).order_by(PollingStrategy.display_order.asc(), PollingStrategy.id.asc())
     ).scalars().all()
+    controls = session.execute(
+        select(SnmpControlTemplate)
+        .where(SnmpControlTemplate.profile_code == selected_code)
+        .order_by(SnmpControlTemplate.sort_order.asc(), SnmpControlTemplate.id.asc())
+    ).scalars().all()
     enums = session.execute(
         select(MibEnum).where(MibEnum.profile_code == selected_code).order_by(MibEnum.enum_name.asc(), MibEnum.code.asc())
     ).scalars().all()
@@ -748,10 +1140,12 @@ def mib_nodes():
         select(AlarmRule).where(AlarmRule.profile_code == selected_code).order_by(AlarmRule.category.asc(), AlarmRule.alarm_id.asc())
     ).scalars().all()
     selected_strategy_id = request.args.get("strategy_id", type=int)
+    selected_control_id = request.args.get("control_id", type=int)
     selected_node_id = request.args.get("node_id", type=int)
     selected_enum_id = request.args.get("enum_id", type=int)
     selected_rule_id = request.args.get("rule_id", type=int)
     selected_strategy = next((item for item in strategies if item.id == selected_strategy_id), strategies[0] if strategies else None)
+    selected_control = next((item for item in controls if item.id == selected_control_id), controls[0] if controls else None)
     selected_node = next((item for item in nodes if item.id == selected_node_id), nodes[0] if nodes else None)
     selected_enum = next((item for item in enums if item.id == selected_enum_id), enums[0] if enums else None)
     selected_rule = next((item for item in alarm_rules if item.id == selected_rule_id), alarm_rules[0] if alarm_rules else None)
@@ -765,12 +1159,25 @@ def mib_nodes():
             create_mode=create_mode,
             nodes=nodes,
             strategies=strategies,
+            controls=controls,
             enums=enums,
             alarm_rules=alarm_rules,
             selected_strategy=selected_strategy,
+            selected_control=selected_control,
             selected_node=selected_node,
             selected_enum=selected_enum,
             selected_rule=selected_rule,
+            access_options=[
+                ("read-only", "read-only"),
+                ("read-write", "read-write"),
+            ],
+            value_type_options=[
+                ("text", "文本"),
+                ("number", "数值"),
+                ("switch", "开关"),
+                ("enum", "枚举"),
+                ("ip", "IP 地址"),
+            ],
             judge_type_options=[
                 ("", "不做判断"),
                 ("enum_equals", "枚举值匹配"),
@@ -893,6 +1300,7 @@ def delete_mib_profile(profile_code: str):
         return _redirect_profile_page(profile.profile_code, tab="profile")
 
     session.query(PollingStrategy).filter(PollingStrategy.profile_code == profile_code).delete()
+    session.query(SnmpControlTemplate).filter(SnmpControlTemplate.profile_code == profile_code).delete()
     session.query(AlarmRule).filter(AlarmRule.profile_code == profile_code).delete()
     session.query(MibEnum).filter(MibEnum.profile_code == profile_code).delete()
     session.query(MibNode).filter(MibNode.profile_code == profile_code).delete()
@@ -1030,6 +1438,120 @@ def delete_polling_strategy(strategy_id: int):
     session.commit()
     flash("采集策略已删除。", "success")
     return _redirect_profile_page(profile_code, tab="strategies")
+
+
+@web_bp.post("/mib-nodes/controls")
+@login_required
+@role_required("admin")
+def create_snmp_control_template():
+    session = get_db_session()
+    profile_code = request.form.get("profile_code", "").strip()
+    profile = session.execute(select(DeviceProfile).where(DeviceProfile.profile_code == profile_code)).scalar_one_or_none()
+    if profile is None:
+        flash("设备模板不存在。", "error")
+        return _redirect_profile_page(tab="controls")
+
+    control = SnmpControlTemplate(
+        profile_code=profile_code,
+        oid_name=request.form.get("oid_name", "").strip(),
+        oid=request.form.get("oid", "").strip(),
+        display_name=request.form.get("display_name", "").strip() or request.form.get("oid_name", "").strip(),
+        access="read-only",
+        data_type=request.form.get("data_type", "").strip() or "DisplayString",
+        value_type=request.form.get("value_type", "").strip() or "text",
+        writable=False,
+        sort_order=100,
+        enabled=True,
+    )
+    try:
+        _snmp_control_from_form(control)
+    except ValueError:
+        flash("枚举映射 JSON 格式不正确。", "error")
+        return _redirect_profile_page(profile_code, tab="controls", mode="create")
+    if not control.oid_name or not control.oid or not control.display_name:
+        flash("SNMP 控制项必须填写名称、OID 和显示名称。", "error")
+        return _redirect_profile_page(profile_code, tab="controls", mode="create")
+
+    session.add(control)
+    try:
+        session.flush()
+    except IntegrityError:
+        session.rollback()
+        flash("同一模板下控制项名称或 OID 重复。", "error")
+        return _redirect_profile_page(profile_code, tab="controls", mode="create")
+    log_operation(
+        session,
+        user_id=current_user.id,
+        username_snapshot=current_user.username,
+        action="create_snmp_control_template",
+        target_type="snmp_control_template",
+        target_id=str(control.id),
+        details_json={"profile_code": control.profile_code, "oid_name": control.oid_name, "oid": control.oid},
+    )
+    session.commit()
+    flash("SNMP 控制项已创建。", "success")
+    return _redirect_profile_page(profile_code, tab="controls", control_id=control.id)
+
+
+@web_bp.post("/mib-nodes/controls/<int:control_id>")
+@login_required
+@role_required("admin")
+def update_snmp_control_template(control_id: int):
+    session = get_db_session()
+    control = session.get(SnmpControlTemplate, control_id)
+    if control is None:
+        flash("SNMP 控制项不存在。", "error")
+        return _redirect_profile_page(tab="controls")
+    try:
+        _snmp_control_from_form(control)
+    except ValueError:
+        flash("枚举映射 JSON 格式不正确。", "error")
+        return _redirect_profile_page(control.profile_code, tab="controls", control_id=control.id)
+    if not control.oid_name or not control.oid or not control.display_name:
+        flash("SNMP 控制项必须填写名称、OID 和显示名称。", "error")
+        return _redirect_profile_page(control.profile_code, tab="controls", control_id=control.id)
+    log_operation(
+        session,
+        user_id=current_user.id,
+        username_snapshot=current_user.username,
+        action="update_snmp_control_template",
+        target_type="snmp_control_template",
+        target_id=str(control.id),
+        details_json={"profile_code": control.profile_code, "oid_name": control.oid_name, "oid": control.oid},
+    )
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        flash("同一模板下控制项名称或 OID 重复。", "error")
+        return _redirect_profile_page(control.profile_code, tab="controls", control_id=control.id)
+    flash("SNMP 控制项已更新。", "success")
+    return _redirect_profile_page(control.profile_code, tab="controls", control_id=control.id)
+
+
+@web_bp.post("/mib-nodes/controls/<int:control_id>/delete")
+@login_required
+@role_required("admin")
+def delete_snmp_control_template(control_id: int):
+    session = get_db_session()
+    control = session.get(SnmpControlTemplate, control_id)
+    if control is None:
+        flash("SNMP 控制项不存在。", "error")
+        return _redirect_profile_page(tab="controls")
+    profile_code = control.profile_code
+    log_operation(
+        session,
+        user_id=current_user.id,
+        username_snapshot=current_user.username,
+        action="delete_snmp_control_template",
+        target_type="snmp_control_template",
+        target_id=str(control.id),
+        details_json={"profile_code": control.profile_code, "oid_name": control.oid_name},
+    )
+    session.delete(control)
+    session.commit()
+    flash("SNMP 控制项已删除。", "success")
+    return _redirect_profile_page(profile_code, tab="controls")
 
 
 @web_bp.post("/mib-nodes/nodes")
@@ -1333,19 +1855,20 @@ def delete_alarm_rule(rule_id: int):
 @login_required
 def traps():
     session = get_db_session()
-    severity_values = _clean_multi_values("severity")
-    trap_type_values = _clean_multi_values("trap_type")
-    device_ids = [int(item) for item in _clean_multi_values("device_id") if item.isdigit()]
+    severity_value = request.args.get("severity", "").strip()
+    trap_type_value = request.args.get("trap_type", "").strip()
+    device_id_value = request.args.get("device_id", "").strip()
+    device_id = int(device_id_value) if device_id_value.isdigit() else None
     keyword = request.args.get("keyword", "").strip()
     page = _page_number()
     per_page = _per_page_number()
     stmt = select(TrapEvent)
-    if severity_values:
-        stmt = stmt.where(TrapEvent.severity.in_(severity_values))
-    if trap_type_values:
-        stmt = stmt.where(TrapEvent.trap_type.in_(trap_type_values))
-    if device_ids:
-        stmt = stmt.where(TrapEvent.device_id.in_(device_ids))
+    if severity_value:
+        stmt = stmt.where(TrapEvent.severity == severity_value)
+    if trap_type_value:
+        stmt = stmt.where(TrapEvent.trap_type == trap_type_value)
+    if device_id is not None:
+        stmt = stmt.where(TrapEvent.device_id == device_id)
     if keyword:
         stmt = stmt.where(
             or_(
@@ -1356,47 +1879,57 @@ def traps():
                 TrapEvent.raw_summary.ilike(f"%{keyword}%"),
             )
         )
-    total = session.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
-    pager = _build_pager(
-        endpoint="web.traps",
-        page=page,
-        per_page=per_page,
-        total=total,
-        severity=severity_values,
-        trap_type=trap_type_values,
-        device_id=device_ids,
-        keyword=keyword,
-    )
     trap_rows = session.execute(
         stmt.order_by(TrapEvent.received_at.desc(), TrapEvent.id.desc())
-        .offset((pager["page"] - 1) * per_page)
-        .limit(per_page)
     ).scalars().all()
     devices = _device_map(session)
     profiles = _profile_map(session)
     severity_option_values = sorted(
         {item for item in session.execute(select(TrapEvent.severity).where(TrapEvent.severity.is_not(None)).distinct()).scalars().all() if item}
-        | set(severity_values)
+        | ({severity_value} if severity_value else set())
     )
     trap_type_option_values = sorted(
         {item for item in session.execute(select(TrapEvent.trap_type).where(TrapEvent.trap_type.is_not(None)).distinct()).scalars().all() if item}
-        | set(trap_type_values)
+        | ({trap_type_value} if trap_type_value else set())
     )
     trap_views = [
         _trap_payload(item, devices.get(item.device_id) if item.device_id else None, profiles.get(item.profile_code or DEFAULT_PROFILE_CODE))
         for item in trap_rows
     ]
+    grouped_traps: list[dict[str, Any]] = []
+    buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    ordered_keys: list[str] = []
+    for item in trap_views:
+        key = str(item.get("pdu_id") or f"single-{item['id']}")
+        if key not in buckets:
+            ordered_keys.append(key)
+        buckets[key].append(item)
+    for key in ordered_keys:
+        grouped_traps.append(_trap_group_payload(buckets[key]))
+    total = len(grouped_traps)
+    pager = _build_pager(
+        endpoint="web.traps",
+        page=page,
+        per_page=per_page,
+        total=total,
+        severity=severity_value or None,
+        trap_type=trap_type_value or None,
+        device_id=device_id_value or None,
+        keyword=keyword,
+    )
+    grouped_traps = grouped_traps[(pager["page"] - 1) * per_page : pager["page"] * per_page]
     return render_template(
         "traps.html",
         **_base_context(
-            page_name="Trap 实时页面",
-            traps=trap_views,
+            page_name="Trap 日志",
+            page_description="查看原始 Trap 接收批次、分片内容和入库结果。",
+            traps=grouped_traps,
             devices=list(devices.values()),
             severity_options=severity_option_values,
             trap_type_options=trap_type_option_values,
-            filter_severities=severity_values,
-            filter_trap_types=trap_type_values,
-            filter_device_ids=device_ids,
+            filter_severity=severity_value,
+            filter_trap_type=trap_type_value,
+            filter_device_id=device_id,
             filter_keyword=keyword,
             pager=pager,
             per_page_options=[20, 30, 50, 100],
@@ -1414,6 +1947,17 @@ def trap_detail(trap_id: int):
     device = session.get(Device, trap.device_id) if trap.device_id else None
     profile = session.execute(select(DeviceProfile).where(DeviceProfile.profile_code == (trap.profile_code or DEFAULT_PROFILE_CODE))).scalar_one_or_none()
     payload = _trap_payload(trap, device, profile)
+    sibling_rows = session.execute(
+        select(TrapEvent).where(TrapEvent.pdu_id == trap.pdu_id).order_by(TrapEvent.id.asc())
+    ).scalars().all() if trap.pdu_id else [trap]
+    split_rows = [
+        _trap_payload(
+            item,
+            session.get(Device, item.device_id) if item.device_id else None,
+            profile,
+        )
+        for item in sibling_rows
+    ]
     raw_varbinds = []
     if isinstance(trap.raw_json, dict):
         maybe_varbinds = trap.raw_json.get("varbinds")
@@ -1430,6 +1974,7 @@ def trap_detail(trap_id: int):
             raw_json_pretty=_json_pretty(trap.raw_json),
             translated_json_pretty=_json_pretty(trap.translated_json),
             raw_varbinds=raw_varbinds,
+            split_rows=split_rows,
         ),
     )
 
@@ -1452,6 +1997,7 @@ def alarms():
     events = session.execute(select(AlarmEvent).order_by(AlarmEvent.occurred_at.desc(), AlarmEvent.id.desc())).scalars().all()
     active_map = {item.id: item for item in session.execute(select(ActiveAlarm)).scalars().all()}
     devices = session.execute(select(Device).order_by(Device.name.asc())).scalars().all()
+    device_map = {item.id: item for item in devices}
     device_names = {item.id: item.name for item in devices}
     trap_ids = {item.trap_event_id for item in events if item.trap_event_id}
     trap_map = {}
@@ -1486,13 +2032,19 @@ def alarms():
             "active_alarm": active_alarm,
             "trap_event": trap_event,
             "device_name": device_names.get(item.device_id, "未知设备"),
+            "device_ip": "-" if item.device_id not in device_map else device_map[item.device_id].ip,
             "alarm_description": alarm_description,
             "severity_label": severity_label(item.severity),
             "status_label": status_label(item.status),
-            "active_state_label": "活动中" if active_alarm and active_alarm.is_open else "已关闭",
+            "active_state_label": "未恢复" if active_alarm and active_alarm.is_open else "已恢复",
             "ack_state_label": "已确认" if active_alarm and active_alarm.is_acknowledged else "未确认",
         }
-        row["event_state_label"] = "恢复事件" if item.status == "close" or item.severity == "cleared" else "告警事件"
+        row["event_state_label"] = "恢复事件" if item.status == "close" or item.severity == "cleared" else "状态事件"
+        row["occurrence_count"] = 0 if active_alarm is None else int(active_alarm.occurrence_count or 0)
+        row["device_detail_url"] = url_for("web.device_detail", device_id=item.device_id) if item.device_id else None
+        row["trap_detail_url"] = url_for("web.trap_detail", trap_id=item.trap_event_id) if item.trap_event_id else None
+        row["trap_summary"] = None if trap_event is None else trap_event.raw_summary
+        row["restored_at"] = None if not active_alarm or active_alarm.is_open else format_dt(active_alarm.closed_at)
         row["can_ack"] = bool(
             active_alarm
             and active_alarm.is_open
@@ -1515,19 +2067,23 @@ def alarms():
             continue
         if open_state == "closed" and active_alarm and active_alarm.is_open:
             continue
-        if start_dt and item.occurred_at < start_dt:
+        occurred_at_utc = _as_utc(item.occurred_at)
+        if start_dt and occurred_at_utc and occurred_at_utc < start_dt:
             continue
-        if end_dt and item.occurred_at >= end_dt:
+        if end_dt and occurred_at_utc and occurred_at_utc >= end_dt:
             continue
         if keyword:
             haystack = " ".join(
                 filter(
                     None,
                     [
+                        device_names.get(item.device_id),
+                        None if item.device_id not in device_map else device_map[item.device_id].ip,
                         item.alarm_obj,
                         item.alarm_id,
                         alarm_description,
                         item.message,
+                        None if trap_event is None else trap_event.raw_summary,
                         None if active_alarm is None else active_alarm.notes,
                     ],
                 )
@@ -1536,8 +2092,16 @@ def alarms():
                 continue
         rows.append(row)
 
+    rows.sort(key=_event_priority, reverse=True)
     active_count = sum(1 for item in active_map.values() if item.is_open)
     unacked_count = sum(1 for item in active_map.values() if item.is_open and not item.is_acknowledged)
+    severe_major_count = sum(1 for item in active_map.values() if item.is_open and item.severity in {"critical", "major"})
+    day_start_utc, day_end_utc = _local_day_bounds()
+    today_new_event_total = sum(
+        1
+        for item in events
+        if _as_utc(item.occurred_at) and day_start_utc <= _as_utc(item.occurred_at) < day_end_utc
+    )
     total = len(rows)
     pager = _build_pager(
         endpoint="web.alarms",
@@ -1557,11 +2121,14 @@ def alarms():
     return render_template(
         "alarms.html",
         **_base_context(
-            page_name="告警中心",
+            page_name="事件中心",
+            page_description="集中查看、筛选和确认设备告警事件。",
             alarm_rows=rows,
             devices=devices,
             active_count=active_count,
             unacked_count=unacked_count,
+            severe_major_count=severe_major_count,
+            today_new_event_total=today_new_event_total,
             pager=pager,
             per_page_options=[20, 30, 50, 100],
             filters={
@@ -1676,6 +2243,7 @@ def api_popup_notifications():
                 "status": item.status,
                 "status_label": status_label(item.status),
                 "device_name": device_names.get(item.device_id, "未知设备"),
+                "created_at_display": format_dt(item.created_at),
                 "created_at": item.created_at.astimezone(timezone.utc).isoformat() if item.created_at else None,
             }
             for item in items

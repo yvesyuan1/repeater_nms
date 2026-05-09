@@ -1,6 +1,6 @@
 # repeater-nms
 
-`repeater-nms` 是一个面向 10G IPVB 中继器的网管系统。当前第一版已围绕博汇 `RX10` 完成设备管理、SNMP GET 采集、SNMP Trap 接收与展示、告警管理、基础 Web 页面、Redis 实时推送和服务器部署。
+`repeater-nms` 是一个面向 10G IPVB 中继器的网管系统。当前版本已围绕 JSCN `BHRX10` 完成设备管理、设备详情、SNMP 控制、SNMP Trap 接收与展示、事件中心、基础 Web 页面、Redis 实时推送和服务器部署。
 
 项目业务名统一使用 `repeater-nms`，Python 包名统一使用 `repeater_nms`。
 
@@ -28,7 +28,7 @@
 - 同一 Trap PDU 多告警拆分
 - 告警归一化、活动告警、告警确认
 - Redis pub/sub + SSE 实时推送
-- Trap 实时页面、Trap 详情页
+- Trap 日志页面、Trap 详情页
 - 设备运行总览
 - 操作日志
 - systemd + Nginx 部署
@@ -68,7 +68,7 @@ flowchart LR
   - 模板页面
   - 登录鉴权
   - Trap 查询
-  - 告警中心
+  - 事件中心
   - SSE 输出
 
 - `repeater-nms-collector`
@@ -121,7 +121,7 @@ tests/
 
 - `repeater_device_profiles`
   - 设备模板
-  - 当前内置 `bohui_rx10`
+  - 当前内置 `jscn_bhrx10`
 
 - `repeater_mib_nodes`
   - MIB/OID 节点定义
@@ -222,9 +222,9 @@ tests/
 
 当前内置模板：
 
-- `profile_code = bohui_rx10`
-- `vendor = 博汇`
-- `model = RX10`
+- `profile_code = jscn_bhrx10`
+- `vendor = JSCN`
+- `model = BHRX10`
 - `category = 中继器`
 
 后续增加其他品牌或型号时，优先新增模板、MIB、枚举、采集策略和告警规则，不需要改 collector 主流程。
@@ -331,7 +331,7 @@ sudo journalctl -u repeater-nms-collector -n 50 --no-pager
 - SNMP 轮询可用
 - Trap 接收可用
 - 同一 PDU 多事件拆分可用
-- 告警中心可用
+- 事件中心可用
 - Redis + SSE 实时链路可用
 - 服务可通过 systemd 和 Nginx 运维
 

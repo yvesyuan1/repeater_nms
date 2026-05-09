@@ -1,21 +1,62 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <div class="toolbar">
-    <a class="button secondary" href="{{ url_for('web.traps') }}">返回 Trap 列表</a>
+  <style>
+    .detail-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .split-grid {
+      display: grid;
+      gap: 10px;
+    }
+    .split-card {
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel-alt);
+    }
+    .split-card .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    @media (max-width: 1080px) {
+      .detail-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    @media (max-width: 720px) {
+      .detail-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+
+  <div class="detail-toolbar">
+    <a class="button secondary" href="{{ url_for('web.traps') }}">返回 Trap 日志</a>
     {% if device %}
       <a class="button secondary" href="{{ url_for('web.device_detail', device_id=device.id) }}">查看设备详情</a>
     {% endif %}
   </div>
 
-  <div class="grid cards">
+  <div class="detail-grid">
     <div class="card"><div class="label">设备</div><div class="value" style="font-size:20px;">{{ payload.device_name }}</div></div>
     <div class="card"><div class="label">设备模板</div><div class="value" style="font-size:20px;">{{ payload.profile_title }}</div></div>
     <div class="card"><div class="label">接收时间</div><div class="value" style="font-size:18px;">{{ payload.received_at }}</div></div>
     <div class="card"><div class="label">PDU ID</div><div class="value" style="font-size:18px;">{{ payload.pdu_id or '-' }}</div></div>
   </div>
 
-  <section class="card" style="margin-top:18px;">
+  <section class="card" style="margin-bottom:18px;">
     <h3 style="margin-top:0;">Trap 基本信息</h3>
     <table>
       <tbody>
@@ -30,13 +71,26 @@
     </table>
   </section>
 
-  <section class="card" style="margin-top:18px;">
-    <h3 style="margin-top:0;">中文摘要</h3>
-    <div>{{ payload.summary_zh }}</div>
+  <section class="card" style="margin-bottom:18px;">
+    <h3 style="margin-top:0;">同一 PDU 的分片记录</h3>
+    <div class="muted" style="margin-bottom:12px;">当前页面展示同一 `pdu_id` 下拆分入库的全部记录，便于和抓包中的单条 UDP Trap 对照。</div>
+    <div class="split-grid">
+      {% for item in split_rows %}
+        <div class="split-card">
+          <div class="meta">
+            <span class="tag info">记录 {{ item.id }}</span>
+            <span class="tag {{ item.severity or 'info' }}">{{ item.severity_label or '性能/信息' }}</span>
+            <span class="tag {{ item.status or 'unknown' }}">{{ item.status_label or '无状态' }}</span>
+          </div>
+          <div style="font-weight:700;line-height:1.5;">{{ item.raw_summary or item.summary_zh or '-' }}</div>
+          <div class="muted" style="margin-top:6px;">{{ item.alarm_obj or '-' }}{% if item.alarm_id %} / {{ item.alarm_id }}{% endif %}</div>
+        </div>
+      {% endfor %}
+    </div>
   </section>
 
   {% if raw_varbinds %}
-    <section class="card" style="margin-top:18px;">
+    <section class="card" style="margin-bottom:18px;">
       <h3 style="margin-top:0;">Varbinds 原始字段</h3>
       <table>
         <thead>
@@ -59,12 +113,12 @@
     </section>
   {% endif %}
 
-  <section class="card" style="margin-top:18px;">
+  <section class="card" style="margin-bottom:18px;">
     <h3 style="margin-top:0;">翻译结果 JSON</h3>
     <pre style="white-space:pre-wrap;overflow:auto;">{{ translated_json_pretty }}</pre>
   </section>
 
-  <section class="card" style="margin-top:18px;">
+  <section class="card">
     <h3 style="margin-top:0;">原始 Trap JSON</h3>
     <pre style="white-space:pre-wrap;overflow:auto;">{{ raw_json_pretty }}</pre>
   </section>

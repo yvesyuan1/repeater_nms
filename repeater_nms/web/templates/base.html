@@ -4,93 +4,193 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ page_title }}{% if page_name %} - {{ page_name }}{% endif %}</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
     <style>
       :root {
-        --bg: #f2f5f8;
+        --bg: #edf2f7;
+        --bg-soft: #f6f9fc;
         --panel: #ffffff;
-        --line: #d7dee8;
-        --text: #1c2733;
-        --muted: #617286;
+        --panel-alt: #f8fbfd;
+        --line: #d9e3ec;
+        --line-strong: #c4d2df;
+        --text: #14293c;
+        --muted: #647688;
         --brand: #0f5c7a;
-        --ok: #217346;
-        --warn: #b26a00;
+        --brand-deep: #0b3348;
+        --brand-soft: #e6f0f5;
+        --brand-glow: rgba(15, 92, 122, 0.16);
+        --ok: #1f6f43;
+        --ok-soft: #e7f5ec;
+        --warn: #9a5a00;
+        --warn-soft: #fff3db;
         --danger: #b42318;
-        --shadow: 0 10px 30px rgba(15, 35, 55, 0.08);
+        --danger-soft: #fdeceb;
+        --info: #3867c8;
+        --info-soft: #e8eefc;
+        --shadow: 0 18px 44px rgba(16, 35, 53, 0.08);
+        --shadow-soft: 0 10px 26px rgba(16, 35, 53, 0.05);
       }
       * { box-sizing: border-box; }
       body {
         margin: 0;
         color: var(--text);
         background:
-          radial-gradient(circle at top right, rgba(15, 92, 122, 0.08), transparent 26%),
-          linear-gradient(180deg, #f7f9fc 0%, var(--bg) 100%);
-        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+          radial-gradient(circle at top right, rgba(15, 92, 122, 0.06), transparent 26%),
+          linear-gradient(180deg, #f7fafd 0%, var(--bg) 100%);
+        font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+        line-height: 1.55;
       }
-      a { color: var(--brand); text-decoration: none; }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
       .layout {
         display: grid;
-        grid-template-columns: 260px 1fr;
+        grid-template-columns: 276px minmax(0, 1fr);
         min-height: 100vh;
       }
       .sidebar {
-        padding: 24px 18px;
-        background: #16354a;
-        color: #eef5fb;
+        position: sticky;
+        top: 0;
+        min-height: 100vh;
+        padding: 24px 18px 18px;
+        background: linear-gradient(180deg, #18374a 0%, #122b3b 100%);
+        color: #edf4f9;
       }
       .brand {
-        margin-bottom: 20px;
-        padding-bottom: 18px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+        margin-bottom: 22px;
+        padding: 2px 4px 18px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       }
-      .brand h1 {
-        margin: 0 0 6px;
-        font-size: 22px;
-      }
-      .brand p {
-        margin: 0;
-        font-size: 13px;
-        color: rgba(238, 245, 251, 0.75);
-      }
-      .nav a {
-        display: block;
-        margin-bottom: 8px;
-        padding: 10px 12px;
-        border-radius: 10px;
-        color: rgba(238, 245, 251, 0.92);
-      }
-      .nav a.active,
-      .nav a:hover {
-        background: rgba(255, 255, 255, 0.12);
-      }
-      .sidebar .meta {
-        margin-top: 24px;
-        font-size: 12px;
-        color: rgba(238, 245, 251, 0.72);
-        line-height: 1.6;
-      }
-      .content { padding: 24px; }
-      .topbar {
+      .brand-top {
         display: flex;
         align-items: center;
+        gap: 14px;
+      }
+      .brand-mark {
+        width: 52px;
+        height: 52px;
+        flex: 0 0 52px;
+        border-radius: 15px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        box-shadow: 0 10px 24px rgba(4, 19, 29, 0.22);
+      }
+      .brand-mark img {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      .brand h1 {
+        margin: 0;
+        font-size: 21px;
+        line-height: 1.25;
+        letter-spacing: 0.01em;
+      }
+      .brand-org {
+        margin-top: 10px;
+        color: rgba(237, 244, 249, 0.78);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      .nav {
+        display: grid;
+        gap: 18px;
+      }
+      .nav-group-label {
+        margin: 0 0 10px;
+        padding: 0 10px;
+        color: rgba(237, 244, 249, 0.56);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+      }
+      .nav-links {
+        display: grid;
+        gap: 6px;
+      }
+      .nav a {
+        position: relative;
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        padding: 10px 12px 10px 16px;
+        border-radius: 12px;
+        color: rgba(237, 244, 249, 0.92);
+        border: 1px solid transparent;
+        transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .nav a::before {
+        content: "";
+        width: 3px;
+        height: 18px;
+        margin-right: 12px;
+        border-radius: 999px;
+        background: transparent;
+        transition: background 0.18s ease;
+      }
+      .nav a.sub {
+        min-height: 40px;
+        margin-left: 14px;
+        padding-left: 14px;
+        font-size: 14px;
+        font-weight: 500;
+        color: rgba(237, 244, 249, 0.8);
+      }
+      .nav a:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.08);
+      }
+      .nav a.active {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+      }
+      .nav a.active::before {
+        background: #7ad0ea;
+      }
+      .sidebar-meta {
+        margin-top: 22px;
+        padding: 18px 10px 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        color: rgba(237, 244, 249, 0.52);
+        font-size: 12px;
+        line-height: 1.8;
+      }
+      .content {
+        min-width: 0;
+        padding: 24px;
+      }
+      .topbar {
+        display: flex;
         justify-content: space-between;
+        align-items: flex-start;
         gap: 16px;
         margin-bottom: 18px;
       }
       .topbar h2 {
         margin: 0;
-        font-size: 24px;
+        font-size: 30px;
+        line-height: 1.2;
       }
-      .topbar .status {
-        display: inline-flex;
+      .topbar p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .topbar-side {
+        display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 12px;
         color: var(--muted);
         font-size: 14px;
       }
       .main-panel {
-        background: var(--panel);
+        background: rgba(255, 255, 255, 0.9);
         border: 1px solid var(--line);
-        border-radius: 16px;
+        border-radius: 20px;
         box-shadow: var(--shadow);
         padding: 20px;
       }
@@ -99,8 +199,9 @@
       .card {
         padding: 18px;
         border: 1px solid var(--line);
-        border-radius: 14px;
-        background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
+        border-radius: 16px;
+        background: var(--panel);
+        box-shadow: var(--shadow-soft);
       }
       .card .label {
         color: var(--muted);
@@ -108,40 +209,59 @@
       }
       .card .value {
         margin-top: 8px;
-        font-size: 30px;
+        font-size: 28px;
         font-weight: 700;
+        line-height: 1.2;
       }
       .toolbar, .filters {
         display: flex;
         flex-wrap: wrap;
-        gap: 10px;
         align-items: center;
+        gap: 10px;
         margin-bottom: 16px;
       }
       form.inline { display: inline; }
       input, select, textarea, button { font: inherit; }
       input:not([type="checkbox"]):not([type="radio"]), select, textarea {
         width: 100%;
-        padding: 10px 12px;
+        min-height: 40px;
+        padding: 9px 12px;
         border: 1px solid var(--line);
         border-radius: 10px;
         background: #fff;
+        color: var(--text);
       }
-      textarea { min-height: 90px; resize: vertical; }
+      input:not([type="checkbox"]):not([type="radio"]):focus,
+      select:focus,
+      textarea:focus {
+        outline: none;
+        border-color: #75a9c3;
+        box-shadow: 0 0 0 3px rgba(15, 92, 122, 0.1);
+      }
+      textarea {
+        min-height: 92px;
+        resize: vertical;
+      }
       button, .button {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 6px;
-        padding: 10px 14px;
+        min-height: 40px;
+        padding: 9px 14px;
         border: 0;
         border-radius: 10px;
         cursor: pointer;
         background: var(--brand);
         color: #fff;
+        font-weight: 600;
+        transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+      }
+      button:hover, .button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 18px rgba(15, 92, 122, 0.16);
       }
       button.secondary, .button.secondary {
-        background: #eaf0f5;
+        background: #edf3f7;
         color: var(--text);
       }
       button.danger { background: var(--danger); }
@@ -151,49 +271,49 @@
         gap: 14px;
       }
       .form-grid .full { grid-column: 1 / -1; }
-      .checkbox-field {
+      .checkbox-field,
+      .bool-field {
         display: inline-flex;
         align-items: center;
         gap: 10px;
-        min-height: 44px;
-        padding-top: 24px;
-        white-space: nowrap;
-      }
-      .checkbox-field input[type="checkbox"] {
-        width: 18px;
-        height: 18px;
-        margin: 0;
-        flex: 0 0 auto;
       }
       table {
         width: 100%;
         border-collapse: collapse;
       }
       th, td {
-        padding: 10px 12px;
+        padding: 12px 12px;
         border-bottom: 1px solid var(--line);
-        vertical-align: top;
         text-align: left;
+        vertical-align: top;
         font-size: 14px;
       }
       th {
         color: var(--muted);
         font-weight: 600;
+        white-space: nowrap;
+      }
+      .table-scroll {
+        width: 100%;
+        overflow-x: auto;
       }
       .tag {
         display: inline-block;
-        padding: 4px 8px;
+        padding: 4px 9px;
         border-radius: 999px;
-        background: #eef3f8;
+        background: #eef3f7;
         color: var(--text);
         font-size: 12px;
+        font-weight: 700;
       }
-      .tag.critical, .tag.major { background: #fde8e8; color: var(--danger); }
-      .tag.warning, .tag.minor { background: #fff4dd; color: var(--warn); }
-      .tag.ok, .tag.report, .tag.change, .tag.acknowledged, .tag.normal { background: #e9f8ef; color: var(--ok); }
-      .tag.close, .tag.cleared, .tag.unknown { background: #eff2f6; color: var(--muted); }
-      .tag.error, .tag.poll_error { background: #fde8e8; color: var(--danger); }
-      .tag.partial { background: #fff4dd; color: var(--warn); }
+      .tag.critical { background: var(--danger-soft); color: #ab2318; }
+      .tag.major { background: #fff1e6; color: #a74c0d; }
+      .tag.minor, .tag.warning { background: var(--warn-soft); color: var(--warn); }
+      .tag.ok, .tag.normal, .tag.report, .tag.change, .tag.acknowledged { background: var(--ok-soft); color: var(--ok); }
+      .tag.close, .tag.cleared, .tag.unknown { background: #eef2f6; color: #5f6f80; }
+      .tag.error, .tag.poll_error { background: var(--danger-soft); color: var(--danger); }
+      .tag.partial { background: #fdf1df; color: #9f6107; }
+      .tag.info { background: var(--info-soft); color: var(--info); }
       .flash-stack {
         display: grid;
         gap: 10px;
@@ -206,12 +326,12 @@
         background: #fff;
       }
       .flash.error {
-        border-color: #f6c6c6;
-        background: #fff3f2;
+        border-color: #f5cfc9;
+        background: #fff5f4;
         color: var(--danger);
       }
       .flash.success {
-        border-color: #bfe4ca;
+        border-color: #c4e2ce;
         background: #eefaf2;
         color: var(--ok);
       }
@@ -224,27 +344,30 @@
         padding: 12px 14px;
         border: 1px solid var(--line);
         border-radius: 12px;
-        background: #f8fbfd;
+        background: var(--panel-alt);
         color: var(--muted);
-        line-height: 1.6;
+      }
+      .ellipsis {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .pager {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
         align-items: center;
         justify-content: space-between;
+        gap: 10px;
         margin-top: 16px;
       }
       .pager .page-links {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        align-items: center;
       }
       .pager .page-links a,
       .pager .page-links span {
-        min-width: 38px;
+        min-width: 36px;
         padding: 8px 12px;
         border-radius: 10px;
         border: 1px solid var(--line);
@@ -254,52 +377,8 @@
       }
       .pager .page-links .current {
         background: var(--brand);
-        color: #fff;
         border-color: var(--brand);
-      }
-      .checklist-filter {
-        min-width: 220px;
-        flex: 1;
-        padding: 12px;
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        background: #fbfdff;
-      }
-      .checklist-filter h4 {
-        margin: 0 0 10px;
-        font-size: 14px;
-      }
-      .checklist-filter .option-search {
-        margin-bottom: 10px;
-      }
-      .checklist-filter .option-list {
-        display: grid;
-        gap: 8px;
-        max-height: 180px;
-        overflow: auto;
-      }
-      .checklist-filter .option-item {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 14px;
-      }
-      .checklist-filter .option-item input[type="checkbox"] {
-        width: 16px;
-        height: 16px;
-        margin: 0;
-      }
-      .table-compact {
-        table-layout: fixed;
-      }
-      .table-compact th,
-      .table-compact td {
-        white-space: nowrap;
-      }
-      .ellipsis {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        color: #fff;
       }
       .popup-tray {
         position: fixed;
@@ -314,7 +393,7 @@
         padding: 14px;
         border-radius: 14px;
         background: #fffaf8;
-        border: 1px solid #f5d3c7;
+        border: 1px solid #f0d4c6;
         box-shadow: var(--shadow);
       }
       .popup-item h4 {
@@ -322,56 +401,183 @@
         font-size: 15px;
       }
       .footer {
-        margin-top: 18px;
+        margin-top: 16px;
         color: var(--muted);
         font-size: 12px;
         text-align: right;
       }
-      @media (max-width: 920px) {
-        .layout { grid-template-columns: 1fr; }
-        .sidebar { padding-bottom: 8px; }
-        .nav {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-          gap: 8px;
+      .auth-shell {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .auth-card {
+        width: min(420px, 100%);
+        padding: 28px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: var(--shadow);
+      }
+      .auth-card-head {
+        margin-bottom: 20px;
+      }
+      .auth-brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 16px;
+      }
+      .auth-brand img {
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        box-shadow: 0 10px 24px rgba(15, 64, 85, 0.12);
+      }
+      .auth-eyebrow {
+        display: inline-flex;
+        padding: 5px 10px;
+        border-radius: 999px;
+        background: var(--brand-soft);
+        color: var(--brand);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .auth-card-head h2 {
+        margin: 10px 0 8px;
+        font-size: 30px;
+      }
+      .auth-form {
+        display: grid;
+        gap: 16px;
+      }
+      .captcha-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 138px;
+        gap: 12px;
+        align-items: end;
+      }
+      .captcha-image {
+        width: 100%;
+        height: 48px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #f8fbfd;
+        object-fit: cover;
+        cursor: pointer;
+      }
+      .auth-footer {
+        margin-top: 16px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.7;
+      }
+      @media (max-width: 1120px) {
+        .layout {
+          grid-template-columns: 1fr;
         }
-        .content { padding: 16px; }
+        .sidebar {
+          position: static;
+          min-height: auto;
+        }
+      }
+      @media (max-width: 980px) {
+        .content {
+          padding: 18px 14px;
+        }
+        .topbar {
+          flex-direction: column;
+        }
+      }
+      @media (max-width: 720px) {
+        .content {
+          padding: 14px 10px;
+        }
+        .main-panel,
+        .auth-card {
+          padding: 16px;
+        }
+        .captcha-row {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
   <body>
     {% if current_user.is_authenticated %}
+      {% set endpoint = request.endpoint or '' %}
       <div class="layout">
         <aside class="sidebar">
           <div class="brand">
-            <h1>{{ page_title }}</h1>
-            <p>{{ current_user.username }} / {{ current_user.role|role_label }}</p>
+            <div class="brand-top">
+              <div class="brand-mark">
+                <img src="{{ url_for('static', filename='favicon.svg') }}" alt="系统图标">
+              </div>
+              <div class="brand-title">
+                <h1>中继器网管</h1>
+              </div>
+            </div>
+            <div class="brand-org">江苏有线南京分公司 × 数网科技</div>
           </div>
+
           <nav class="nav">
-            <a class="{{ 'active' if page_name == '设备运行总览' else '' }}" href="{{ url_for('web.dashboard') }}">首页总览</a>
-            {% if current_user.role == 'admin' %}
-              <a class="{{ 'active' if page_name == '用户管理' else '' }}" href="{{ url_for('web.users') }}">用户管理</a>
-            {% endif %}
-            <a class="{{ 'active' if page_name == '设备管理' else '' }}" href="{{ url_for('web.devices') }}">设备管理</a>
-            <a class="{{ 'active' if page_name == '设备模板' else '' }}" href="{{ url_for('web.mib_nodes') }}">设备模板</a>
-            <a class="{{ 'active' if page_name == 'Trap 实时页面' else '' }}" href="{{ url_for('web.traps') }}">Trap 实时</a>
-            <a class="{{ 'active' if page_name == '告警中心' else '' }}" href="{{ url_for('web.alarms') }}">告警中心</a>
-            <a class="{{ 'active' if page_name == '操作日志' else '' }}" href="{{ url_for('web.logs') }}">操作日志</a>
+            <div class="nav-group">
+              <div class="nav-group-label">监控总览</div>
+              <div class="nav-links">
+                <a class="{{ 'active' if endpoint == 'web.dashboard' else '' }}" href="{{ url_for('web.dashboard') }}">总览</a>
+              </div>
+            </div>
+
+            <div class="nav-group">
+              <div class="nav-group-label">设备管理</div>
+              <div class="nav-links">
+                <a class="{{ 'active' if endpoint in ['web.devices', 'web.device_detail', 'web.edit_device'] else '' }}" href="{{ url_for('web.devices') }}">设备列表</a>
+                <a class="{{ 'active' if endpoint == 'web.mib_nodes' else '' }}" href="{{ url_for('web.mib_nodes') }}">设备模板</a>
+              </div>
+            </div>
+
+            <div class="nav-group">
+              <div class="nav-group-label">事件与日志</div>
+              <div class="nav-links">
+                <a class="{{ 'active' if endpoint in ['web.alarms', 'web.ack_alarm'] else '' }}" href="{{ url_for('web.alarms') }}">事件中心</a>
+                <a class="{{ 'active' if endpoint in ['web.traps', 'web.trap_detail'] else '' }}" href="{{ url_for('web.traps') }}">Trap 日志</a>
+              </div>
+            </div>
+
+            <div class="nav-group">
+              <div class="nav-group-label">系统管理</div>
+              <div class="nav-links">
+                {% if current_user.role == 'admin' %}
+                  <a class="{{ 'active' if endpoint == 'web.users' else '' }}" href="{{ url_for('web.users') }}">用户管理</a>
+                {% endif %}
+                <a class="{{ 'active' if endpoint == 'web.logs' else '' }}" href="{{ url_for('web.logs') }}">操作日志</a>
+              </div>
+            </div>
           </nav>
-          <div class="meta">
-            <div>版权所有 © 江苏有线南京分公司</div>
+
+          <div class="sidebar-meta">
+            <div>版本：repeater-nms</div>
+            <div>版权：江苏有线南京分公司 / 数网科技</div>
           </div>
         </aside>
+
         <section class="content">
           <div class="topbar">
-            <h2>{{ page_name }}</h2>
-            <div class="status">
+            <div>
+              <h2>{{ page_name }}</h2>
+              {% if page_description %}
+                <p>{{ page_description }}</p>
+              {% endif %}
+            </div>
+            <div class="topbar-side">
               <span>{{ current_user.username }} / {{ current_user.role|role_label }}</span>
               <form class="inline" method="post" action="{{ url_for('web.logout') }}">
                 <button class="secondary" type="submit">退出登录</button>
               </form>
             </div>
           </div>
+
           {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
               <div class="flash-stack">
@@ -381,14 +587,31 @@
               </div>
             {% endif %}
           {% endwith %}
+
           <div class="main-panel">
             {% block content %}{% endblock %}
           </div>
-          <div class="footer">版权所有 © 江苏有线南京分公司</div>
+          <div class="footer">中继器网管 · 江苏有线南京分公司 × 数网科技</div>
         </section>
       </div>
+
       <div class="popup-tray" id="popup-tray"></div>
       <script>
+        window.formatBeijingTime = function (value) {
+          if (!value) return "-";
+          const date = value instanceof Date ? value : new Date(value);
+          if (Number.isNaN(date.getTime())) return String(value);
+          return new Intl.DateTimeFormat("zh-CN", {
+            timeZone: "Asia/Shanghai",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hourCycle: "h23"
+          }).format(date).replace(/\//g, "-");
+        };
         async function fetchPopups() {
           try {
             const response = await fetch("{{ url_for('web.api_popup_notifications') }}", { credentials: "same-origin" });
@@ -397,13 +620,14 @@
             const tray = document.getElementById("popup-tray");
             tray.innerHTML = "";
             items.slice(0, 4).forEach((item) => {
+              const createdAt = item.created_at_display || window.formatBeijingTime(item.created_at);
               const node = document.createElement("div");
               node.className = "popup-item";
               node.innerHTML = `
-                <h4>${item.severity_label || "告警"} / ${item.alarm_id || "-"}</h4>
+                <h4>${item.severity_label || "事件"} / ${item.alarm_id || "-"}</h4>
                 <div class="muted">${item.device_name || "未知设备"} | ${item.alarm_obj || "-"}</div>
-                <div class="muted" style="margin-top:4px;">${item.created_at || "-"}</div>
-                <div style="margin-top:10px;"><button data-popup-id="${item.id}">确认弹窗</button></div>
+                <div class="muted" style="margin-top:4px;">${createdAt}</div>
+                <div style="margin-top:10px;"><button data-popup-id="${item.id}">确认</button></div>
               `;
               tray.appendChild(node);
             });
@@ -424,7 +648,7 @@
         setInterval(fetchPopups, 10000);
       </script>
     {% else %}
-      <main style="min-height:100vh;display:grid;place-items:center;padding:24px;">
+      <main class="auth-shell">
         {% block auth_content %}{% endblock %}
       </main>
     {% endif %}

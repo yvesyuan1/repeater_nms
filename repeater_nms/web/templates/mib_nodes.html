@@ -98,7 +98,7 @@
           <div class="value" style="font-size:20px;">{{ selected_profile.profile_code }}</div>
         </div>
         <div class="card">
-          <div class="label">厂家 / 型号</div>
+          <div class="label">品牌 / 型号</div>
           <div class="value" style="font-size:20px;">{{ selected_profile.vendor }} {{ selected_profile.model }}</div>
         </div>
         <div class="card">
@@ -107,12 +107,13 @@
         </div>
         <div class="card">
           <div class="label">对象数量</div>
-          <div class="value" style="font-size:20px;">{{ strategies|length }} 策略 / {{ nodes|length }} 节点 / {{ enums|length }} 枚举 / {{ alarm_rules|length }} 告警</div>
+          <div class="value" style="font-size:20px;">{{ controls|length }} 控制项 / {{ strategies|length }} 策略 / {{ nodes|length }} 节点 / {{ enums|length }} 枚举 / {{ alarm_rules|length }} 告警</div>
         </div>
       </div>
 
       <div class="template-tabs">
         {{ tab_link('profile', '模板信息') }}
+        {{ tab_link('controls', 'SNMP 控制项') }}
         {{ tab_link('strategies', '采集策略') }}
         {{ tab_link('nodes', 'MIB 节点') }}
         {{ tab_link('enums', '枚举翻译') }}
@@ -129,7 +130,7 @@
             <dl class="template-summary">
               <dt>模板编码</dt>
               <dd>{{ selected_profile.profile_code }}</dd>
-              <dt>厂家 / 型号</dt>
+              <dt>品牌 / 型号</dt>
               <dd>{{ selected_profile.vendor }} {{ selected_profile.model }}</dd>
               <dt>类别</dt>
               <dd>{{ selected_profile.category }}</dd>
@@ -150,12 +151,12 @@
                     <input type="text" name="profile_code" placeholder="例如：vendor_model_v1">
                   </label>
                   <label>
-                    <div class="muted">厂家</div>
-                    <input type="text" name="vendor" placeholder="例如：博汇">
+                    <div class="muted">品牌</div>
+                    <input type="text" name="vendor" placeholder="例如：JSCN">
                   </label>
                   <label>
                     <div class="muted">型号</div>
-                    <input type="text" name="model" placeholder="例如：RX10">
+                    <input type="text" name="model" placeholder="例如：BHRX10">
                   </label>
                   <label>
                     <div class="muted">类别</div>
@@ -163,7 +164,7 @@
                   </label>
                   <label>
                     <div class="muted">解析器键</div>
-                    <input type="text" name="parser_key" value="bohui_rx10">
+                    <input type="text" name="parser_key" value="jscn_bhrx10">
                   </label>
                   <label class="full">
                     <div class="muted">说明</div>
@@ -188,7 +189,7 @@
               </div>
               <form method="post" action="{{ url_for('web.update_mib_profile', profile_code=selected_profile.profile_code) }}" class="form-grid" style="margin-top:14px;">
                 <label>
-                  <div class="muted">厂家</div>
+                  <div class="muted">品牌</div>
                   <input type="text" name="vendor" value="{{ selected_profile.vendor }}">
                 </label>
                 <label>
@@ -213,6 +214,99 @@
               </form>
             </section>
           </div>
+        </div>
+      {% elif active_tab == 'controls' %}
+        <div class="template-workbench">
+          <section class="card template-list">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <h3 style="margin:0;">SNMP 控制项列表</h3>
+              {% if can_manage_templates %}
+                <a class="button secondary" href="{{ url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='controls', mode='create') }}">新增控制项</a>
+              {% endif %}
+            </div>
+            {% for item in controls %}
+              {{ list_link(url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='controls', control_id=item.id), selected_control and selected_control.id == item.id, item.display_name, item.oid_name ~ ' / ' ~ item.oid ~ ' / ' ~ item.access) }}
+            {% else %}
+              <div class="soft-note" style="margin:0;">当前模板还没有 SNMP 控制项。</div>
+            {% endfor %}
+          </section>
+
+          <section class="card">
+            {% if can_manage_templates and create_mode %}
+              <h3 style="margin-top:0;">新增 SNMP 控制项</h3>
+              <form method="post" action="{{ url_for('web.create_snmp_control_template') }}" class="form-grid">
+                <input type="hidden" name="profile_code" value="{{ selected_profile.profile_code }}">
+                <label><div class="muted">英文名称</div><input type="text" name="oid_name"></label>
+                <label><div class="muted">显示名称</div><input type="text" name="display_name"></label>
+                <label><div class="muted">完整 OID</div><input type="text" name="oid"></label>
+                <label><div class="muted">OID 后缀</div><input type="text" name="oid_suffix" placeholder="例如：.2.1"></label>
+                <label>
+                  <div class="muted">访问权限</div>
+                  <select name="access">
+                    {% for value, label in access_options %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                  </select>
+                </label>
+                <label><div class="muted">数据类型</div><input type="text" name="data_type" value="Integer32"></label>
+                <label>
+                  <div class="muted">展示/控制类型</div>
+                  <select name="value_type">
+                    {% for value, label in value_type_options %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                  </select>
+                </label>
+                <label><div class="muted">单位</div><input type="text" name="unit"></label>
+                <label><div class="muted">枚举名</div><input type="text" name="enum_name"></label>
+                <label><div class="muted">正常规则</div><input type="text" name="normal_rule" placeholder="例如：enum_equals:1,enable"></label>
+                <label><div class="muted">排序</div><input type="number" name="sort_order" min="1" step="1" value="100"></label>
+                <label class="full"><div class="muted">说明</div><textarea name="description"></textarea></label>
+                <label class="full"><div class="muted">枚举映射 JSON</div><textarea name="enum_map_json" placeholder='可留空，或填写 {"0":{"label":"disable","description":"禁用"}}'></textarea></label>
+                <label><input type="checkbox" name="writable"> 允许写入</label>
+                <label><input type="checkbox" name="enabled" checked> 启用</label>
+                <div class="full">
+                  <button type="submit">创建控制项</button>
+                  <a class="button secondary" href="{{ url_for('web.mib_nodes', profile_code=selected_profile.profile_code, tab='controls') }}">取消</a>
+                </div>
+              </form>
+            {% elif selected_control %}
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                <h3 style="margin:0;">编辑 SNMP 控制项</h3>
+                {% if can_manage_templates %}
+                  <form method="post" action="{{ url_for('web.delete_snmp_control_template', control_id=selected_control.id) }}" onsubmit="return confirm('确认删除该 SNMP 控制项？')">
+                    <button class="danger" type="submit">删除</button>
+                  </form>
+                {% endif %}
+              </div>
+              <form method="post" action="{{ url_for('web.update_snmp_control_template', control_id=selected_control.id) }}" class="form-grid" style="margin-top:14px;">
+                <label><div class="muted">英文名称</div><input type="text" name="oid_name" value="{{ selected_control.oid_name }}"></label>
+                <label><div class="muted">显示名称</div><input type="text" name="display_name" value="{{ selected_control.display_name }}"></label>
+                <label><div class="muted">完整 OID</div><input type="text" name="oid" value="{{ selected_control.oid }}"></label>
+                <label><div class="muted">OID 后缀</div><input type="text" name="oid_suffix" value="{{ selected_control.oid_suffix or '' }}"></label>
+                <label>
+                  <div class="muted">访问权限</div>
+                  <select name="access">
+                    {% for value, label in access_options %}<option value="{{ value }}" {% if selected_control.access == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                  </select>
+                </label>
+                <label><div class="muted">数据类型</div><input type="text" name="data_type" value="{{ selected_control.data_type }}"></label>
+                <label>
+                  <div class="muted">展示/控制类型</div>
+                  <select name="value_type">
+                    {% for value, label in value_type_options %}<option value="{{ value }}" {% if selected_control.value_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                  </select>
+                </label>
+                <label><div class="muted">单位</div><input type="text" name="unit" value="{{ selected_control.unit or '' }}"></label>
+                <label><div class="muted">枚举名</div><input type="text" name="enum_name" value="{{ selected_control.enum_name or '' }}"></label>
+                <label><div class="muted">正常规则</div><input type="text" name="normal_rule" value="{{ selected_control.normal_rule or '' }}"></label>
+                <label><div class="muted">排序</div><input type="number" name="sort_order" min="1" step="1" value="{{ selected_control.sort_order }}"></label>
+                <label class="full"><div class="muted">说明</div><textarea name="description">{{ selected_control.description or '' }}</textarea></label>
+                <label class="full"><div class="muted">枚举映射 JSON</div><textarea name="enum_map_json">{{ selected_control.enum_map_json|tojson if selected_control.enum_map_json else '' }}</textarea></label>
+                <label><input type="checkbox" name="writable" {% if selected_control.writable %}checked{% endif %}> 允许写入</label>
+                <label><input type="checkbox" name="enabled" {% if selected_control.enabled %}checked{% endif %}> 启用</label>
+                <div class="full"><button type="submit">保存控制项</button></div>
+              </form>
+            {% else %}
+              <div class="soft-note" style="margin:0;">先从左侧选择一个控制项，或新增一个控制项。</div>
+            {% endif %}
+          </section>
         </div>
       {% elif active_tab == 'strategies' %}
         <div class="template-workbench">

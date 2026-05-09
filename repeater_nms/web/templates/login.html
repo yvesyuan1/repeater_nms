@@ -1,9 +1,18 @@
 {% extends "base.html" %}
 
 {% block auth_content %}
-  <section class="main-panel" style="max-width:440px;width:100%;">
-    <h2 style="margin-top:0;">登录</h2>
-    <p class="muted">登录到中继器网管系统</p>
+  <section class="auth-card">
+    <div class="auth-card-head">
+      <div class="auth-brand">
+        <img src="{{ url_for('static', filename='favicon.svg') }}" alt="系统图标">
+        <div>
+          <span class="auth-eyebrow">安全登录</span>
+          <p class="muted" style="margin:8px 0 0;">{{ app_name }}</p>
+        </div>
+      </div>
+      <h2>登录</h2>
+      <p class="muted">江苏有线南京分公司 × 数网科技</p>
+    </div>
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div class="flash-stack">
@@ -13,33 +22,36 @@
         </div>
       {% endif %}
     {% endwith %}
-    <form method="post" class="grid">
+    <form method="post" class="auth-form">
       <label>
         <div class="muted">用户名</div>
-        <input type="text" name="username" required>
+        <input type="text" name="username" required autocomplete="username" placeholder="请输入用户名">
       </label>
       <label>
         <div class="muted">密码</div>
-        <input type="password" name="password" required>
+        <input type="password" name="password" required autocomplete="current-password" placeholder="请输入登录密码">
       </label>
-      <div class="grid" style="grid-template-columns:1fr 140px;align-items:end;">
+      <div class="captcha-row">
         <label>
           <div class="muted">图片验证码</div>
           <input type="text" name="captcha" maxlength="8" required placeholder="请输入验证码">
         </label>
-        <div>
-          <div class="muted" style="margin-bottom:6px;">看不清可刷新</div>
+        <div class="captcha-preview">
+          <div class="muted">看不清可刷新</div>
           <img
             id="captcha-image"
             src="{{ url_for('web.captcha_svg') }}"
             alt="验证码"
-            style="width:120px;height:44px;border:1px solid #d7dee8;border-radius:10px;background:#f8fbfd;cursor:pointer;"
+            class="captcha-image"
             onclick="this.src='{{ url_for('web.captcha_svg') }}?t=' + Date.now()"
           >
         </div>
       </div>
       <button type="submit">登录</button>
     </form>
-    <div class="muted" style="margin-top:14px;">Copyright © 江苏有线南京分公司</div>
+    <div class="auth-footer">
+      <div>江苏有线南京分公司 × 数网科技</div>
+      <div>登录页仅保留身份认证与验证码校验。</div>
+    </div>
   </section>
 {% endblock %}

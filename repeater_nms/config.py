@@ -9,8 +9,8 @@ load_environment()
 
 
 class Config:
-    APP_NAME = "repeater-nms"
-    PAGE_TITLE = "中继器网管"
+    APP_NAME = "江苏有线中继器智能网管"
+    PAGE_TITLE = "江苏有线中继器智能网管"
     TESTING = os.getenv("TESTING", "0") == "1"
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
     DATABASE_URL = os.getenv(

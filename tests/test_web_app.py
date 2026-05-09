@@ -23,9 +23,45 @@ from repeater_nms.db.models import (
     PopupNotification,
     TrapEvent,
 )
+from repeater_nms.db.seed_data import DEFAULT_PROFILE_CODE
 from repeater_nms.db.session import reset_engine_cache, session_scope
 from repeater_nms.web import create_app
 from repeater_nms.web.utils import alarm_description_label, format_dt
+
+
+class FakeSnmpClient:
+    def __init__(self) -> None:
+        self.values = {
+            "1.3.6.1.4.1.42669.2.1.0": "1",
+            "1.3.6.1.4.1.42669.2.2.0": "work-port-1",
+            "1.3.6.1.4.1.42669.2.3.0": "prt-port-1",
+            "1.3.6.1.4.1.42669.2.4.0": "1",
+            "1.3.6.1.4.1.42669.2.5.0": "30",
+            "1.3.6.1.4.1.42669.2.6.0": "150",
+            "1.3.6.1.4.1.42669.2.7.0": "20",
+            "1.3.6.1.4.1.42669.2.8.0": "7",
+            "1.3.6.1.4.1.42669.2.9.0": "work",
+            "1.3.6.1.4.1.42669.2.10.0": "0",
+            "1.3.6.1.4.1.42669.3.1.0": "1",
+            "1.3.6.1.4.1.42669.3.2.0": "172.25.22.7",
+            "1.3.6.1.4.1.42669.3.3.0": "0",
+            "1.3.6.1.4.1.42669.3.4.0": "self",
+        }
+
+    def get_oid_sync(self, host, port, community, oid):
+        value = self.values.get(oid)
+        if value is None:
+            return {"ok": False, "error": "timeout"}
+        value_num = None
+        try:
+            value_num = float(value)
+        except ValueError:
+            value_num = None
+        return {"ok": True, "oid": oid, "value_raw": value, "value_text": value, "value_num": value_num}
+
+    def set_oid_sync(self, host, port, community, oid, data_type, value):
+        self.values[oid] = str(value)
+        return {"ok": True, "oid": oid, "value_text": str(value)}
 
 
 def _build_app(tmp_path: Path):
@@ -37,6 +73,7 @@ def _build_app(tmp_path: Path):
         device = Device(
             name="RX10-WEB",
             ip="172.31.3.239",
+            device_profile_code=DEFAULT_PROFILE_CODE,
             snmp_port=161,
             trap_port=1162,
             snmp_version="v2c",
@@ -131,6 +168,7 @@ def _build_app(tmp_path: Path):
         REDIS_URL="redis://127.0.0.1:6399/0",
         SSE_HEARTBEAT_SECONDS=1,
         SECRET_KEY="test-secret",
+        SNMP_CLIENT=FakeSnmpClient(),
     )
     return app, database_url
 
@@ -211,6 +249,42 @@ def test_device_and_popup_actions(tmp_path: Path) -> None:
         assert any(item.action == "ack_popup" for item in logs)
 
 
+def test_device_snmp_control_api_and_write_log(tmp_path: Path) -> None:
+    app, database_url = _build_app(tmp_path)
+    client = app.test_client()
+    _login(client)
+
+    detail_response = client.get("/api/devices/1")
+    assert detail_response.status_code == 200
+    assert detail_response.get_json()["ok"] is True
+
+    controls_response = client.get("/api/devices/1/snmp-controls")
+    assert controls_response.status_code == 200
+    controls_payload = controls_response.get_json()
+    assert controls_payload["ok"] is True
+    assert len(controls_payload["controls"]) == 14
+    aps_en = next(item for item in controls_payload["controls"] if item["oid_name"] == "apsEn")
+    assert aps_en["display_name"] == "APS 使能开关"
+
+    set_response = client.post(
+        f"/api/devices/1/snmp-controls/{aps_en['id']}/set",
+        json={"value": "0"},
+    )
+    assert set_response.status_code == 200
+    set_payload = set_response.get_json()
+    assert set_payload["ok"] is True
+    assert set_payload["verify"]["current_value_raw"] == "0"
+
+    events_response = client.get("/api/devices/1/events")
+    assert events_response.status_code == 200
+    assert events_response.get_json()["ok"] is True
+
+    engine = create_engine(database_url)
+    with Session(engine) as session:
+        logs = session.execute(select(OperationLog).order_by(OperationLog.id.asc())).scalars().all()
+        assert any(item.action == "snmp_set_control" for item in logs)
+
+
 def test_sse_endpoint_headers(tmp_path: Path) -> None:
     app, _database_url = _build_app(tmp_path)
     client = app.test_client()
@@ -254,7 +328,7 @@ def test_published_trap_event_payload_has_detail_fields() -> None:
 
 
 def test_format_and_alarm_description_helpers() -> None:
-    assert format_dt(datetime(2026, 5, 8, 10, 8, 44, tzinfo=timezone.utc)) == "2026-05-08 10:08:44"
+    assert format_dt(datetime(2026, 5, 8, 10, 8, 44, tzinfo=timezone.utc)) == "2026-05-08 18:08:44"
     assert alarm_description_label("LOS") == "接口光信号丢失"
     assert alarm_description_label("CPU_24H") == "24小时CPU利用率高于阈值"
 
@@ -271,7 +345,7 @@ def test_template_crud_actions(tmp_path: Path) -> None:
             "vendor": "演示厂家",
             "model": "演示型号",
             "category": "中继器",
-            "parser_key": "bohui_rx10",
+            "parser_key": DEFAULT_PROFILE_CODE,
             "description": "模板说明",
         },
         follow_redirects=True,
@@ -574,7 +648,7 @@ def test_numeric_poll_judge_and_alarm_rule_override() -> None:
         extra={},
     )
     rule = AlarmRule(
-        profile_code="bohui_rx10",
+        profile_code=DEFAULT_PROFILE_CODE,
         alarm_id="LOS",
         default_severity="critical",
         should_create_active=False,
