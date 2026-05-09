@@ -136,7 +136,7 @@ def format_dt(value: datetime | None) -> str:
     if value is None:
         return "-"
     if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
+        return value.strftime("%Y-%m-%d %H:%M:%S")
     return value.astimezone(app_timezone()).strftime("%Y-%m-%d %H:%M:%S")
 
 
@@ -327,7 +327,7 @@ def parse_local_datetime(value: str | None, *, end_of_day: bool = False) -> date
         return None
     parsed = datetime.fromisoformat(value)
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=app_timezone())
     if end_of_day and parsed.hour == 0 and parsed.minute == 0 and parsed.second == 0:
         parsed = parsed + timedelta(days=1)
     return parsed.astimezone(timezone.utc)

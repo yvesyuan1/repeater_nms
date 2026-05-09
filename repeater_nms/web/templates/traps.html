@@ -145,7 +145,7 @@
   <div class="trap-filter-card">
     <div class="trap-filter-head">
       <div>
-        <div class="muted">页面时间统一按北京时间展示；同一 UDP Trap PDU 会按 `pdu_id` 聚合，展开后可看到拆分入库的分片记录。</div>
+        <div class="muted">同一 UDP Trap PDU 会按 `pdu_id` 聚合，展开后可看到拆分入库的分片记录。</div>
       </div>
       <div class="muted" id="sse-status">实时通道：连接中</div>
     </div>
@@ -209,7 +209,7 @@
         <div class="trap-main">
           <div>
             <div class="trap-title">{{ item.received_at }}</div>
-            <div class="trap-sub">北京时间</div>
+            <div class="trap-sub">接收时间</div>
           </div>
           <div>
             <div class="trap-title">{{ item.device_name }}</div>
