@@ -72,6 +72,9 @@ from repeater_nms.web.utils import (
 )
 
 
+AUTO_RECOVERY_MESSAGE = "系统检查正常，自动恢复"
+
+
 web_bp = Blueprint("web", __name__)
 
 
@@ -508,9 +511,9 @@ def _as_utc(value: datetime | None) -> datetime | None:
 def _event_priority(item: dict[str, Any]) -> tuple[int, int, float, int]:
     event = item["event"]
     active_alarm = item.get("active_alarm")
-    is_open = bool(active_alarm and active_alarm.is_open)
-    is_unacked = bool(is_open and not active_alarm.is_acknowledged)
-    severity = _severity_rank(event.severity)
+    is_open = bool(item.get("is_open")) if "is_open" in item else _event_is_current_open(event, active_alarm)
+    is_unacked = bool(item.get("is_unacked")) if "is_unacked" in item else _event_is_current_unacked(event, active_alarm)
+    severity = _severity_rank(item.get("severity_sort") or event.severity)
     occurrence_count = 0 if active_alarm is None else int(active_alarm.occurrence_count or 0)
     occurred_at = _as_utc(event.occurred_at)
     occurred_ts = occurred_at.timestamp() if occurred_at else 0.0
@@ -522,23 +525,74 @@ def _event_priority(item: dict[str, Any]) -> tuple[int, int, float, int]:
     )
 
 
+def _effective_event_severity(
+    event: AlarmEvent,
+    *,
+    active_alarm: ActiveAlarm | None = None,
+    rule: AlarmRule | None = None,
+    trap_event: TrapEvent | None = None,
+) -> str | None:
+    if event.severity and event.severity != "cleared":
+        return event.severity
+    if active_alarm and active_alarm.severity and active_alarm.severity != "cleared":
+        return active_alarm.severity
+    if rule and rule.default_severity:
+        return rule.default_severity
+    if trap_event and trap_event.severity and trap_event.severity != "cleared":
+        return trap_event.severity
+    return event.severity
+
+
+def _event_is_recovery_event(event: AlarmEvent) -> bool:
+    return bool(event.status == "close" or event.severity == "cleared")
+
+
+def _event_is_current_open(event: AlarmEvent, active_alarm: ActiveAlarm | None) -> bool:
+    if _event_is_recovery_event(event):
+        return False
+    if active_alarm is None or not active_alarm.is_open:
+        return False
+    if event.trap_event_id and active_alarm.last_trap_event_id:
+        return active_alarm.last_trap_event_id == event.trap_event_id
+    return event.status in {"report", "change"}
+
+
+def _event_is_current_unacked(event: AlarmEvent, active_alarm: ActiveAlarm | None) -> bool:
+    return bool(_event_is_current_open(event, active_alarm) and active_alarm and not active_alarm.is_acknowledged)
+
+
 def _device_event_payload(
     item: AlarmEvent,
     *,
     active_alarm: ActiveAlarm | None,
     device_name: str,
     device_ip: str | None = None,
+    rule: AlarmRule | None = None,
+    trap_event: TrapEvent | None = None,
 ) -> dict[str, Any]:
+    effective_severity = _effective_event_severity(
+        item,
+        active_alarm=active_alarm,
+        rule=rule,
+        trap_event=trap_event,
+    )
+    is_open = _event_is_current_open(item, active_alarm)
+    auto_recovered = bool(
+        item.message == AUTO_RECOVERY_MESSAGE
+        or (active_alarm and active_alarm.notes == AUTO_RECOVERY_MESSAGE and not active_alarm.is_open)
+    )
     return {
         "id": item.id,
+        "trap_event_id": item.trap_event_id,
         "device_id": item.device_id,
         "device_name": device_name,
         "device_ip": device_ip or "-",
         "alarm_obj": item.alarm_obj,
         "alarm_id": item.alarm_id,
         "alarm_description": alarm_description_label(item.alarm_id),
-        "severity": item.severity,
-        "severity_label": severity_label(item.severity),
+        "severity": effective_severity,
+        "severity_label": severity_label(effective_severity),
+        "severity_raw": item.severity,
         "status": item.status,
         "status_label": status_label(item.status),
         "event_type": item.event_type,
@@ -546,8 +600,11 @@ def _device_event_payload(
         "occurred_at": format_dt(item.occurred_at),
         "occurred_at_iso": item.occurred_at.astimezone(timezone.utc).isoformat() if item.occurred_at else None,
         "restored_at": None if not active_alarm or active_alarm.is_open else format_dt(active_alarm.closed_at),
-        "state_label": "未恢复" if active_alarm and active_alarm.is_open else "已恢复",
+        "state_label": AUTO_RECOVERY_MESSAGE if auto_recovered else ("未恢复" if is_open else "已恢复"),
+        "auto_recovered": auto_recovered,
         "source": "Trap",
+        "is_open": is_open,
+        "is_unacked": _event_is_current_unacked(item, active_alarm),
     }
 
 
@@ -651,26 +708,40 @@ def dashboard():
     event_rows = session.execute(select(AlarmEvent).order_by(AlarmEvent.occurred_at.desc(), AlarmEvent.id.desc())).scalars().all()
     active_alarm_rows = session.execute(select(ActiveAlarm)).scalars().all()
     active_alarm_map = {item.id: item for item in active_alarm_rows}
+    trap_ids = {item.trap_event_id for item in event_rows if item.trap_event_id}
+    trap_map = {
+        item.id: item
+        for item in session.execute(select(TrapEvent).where(TrapEvent.id.in_(trap_ids))).scalars().all()
+    } if trap_ids else {}
+    profile_codes = {item.profile_code or DEFAULT_PROFILE_CODE for item in trap_map.values()}
+    rule_map = {
+        (item.profile_code, item.alarm_id): item
+        for item in session.execute(select(AlarmRule).where(AlarmRule.profile_code.in_(profile_codes))).scalars().all()
+    } if profile_codes else {}
     event_views: list[dict[str, Any]] = []
     for item in event_rows:
         device = devices.get(item.device_id)
         active_alarm = active_alarm_map.get(item.active_alarm_id)
+        trap_event = trap_map.get(item.trap_event_id) if item.trap_event_id else None
+        profile_code = trap_event.profile_code if trap_event and trap_event.profile_code else DEFAULT_PROFILE_CODE
+        rule = rule_map.get((profile_code, item.alarm_id or ""))
         payload = _device_event_payload(
             item,
             active_alarm=active_alarm,
             device_name=device.name if device else "未知设备",
             device_ip=None if device is None else device.ip,
+            rule=rule,
+            trap_event=trap_event,
         )
         payload["event"] = item
         payload["active_alarm"] = active_alarm
+        payload["severity_sort"] = payload["severity"]
         payload["trap_detail_url"] = (
             url_for("web.trap_detail", trap_id=item.trap_event_id) if item.trap_event_id else None
         )
         payload["device_detail_url"] = (
             url_for("web.device_detail", device_id=device.id) if device else None
         )
-        payload["is_open"] = bool(active_alarm and active_alarm.is_open)
-        payload["is_unacked"] = bool(active_alarm and active_alarm.is_open and not active_alarm.is_acknowledged)
         payload["occurrence_count"] = 0 if active_alarm is None else int(active_alarm.occurrence_count or 0)
         event_views.append(payload)
     event_views.sort(key=_event_priority, reverse=True)
@@ -679,6 +750,8 @@ def dashboard():
     unacked_alarm_total = sum(1 for item in active_alarm_rows if item.is_open and not item.is_acknowledged)
     normal_device_total = sum(1 for item in overviews if item["overview_status"] == "normal")
     abnormal_device_total = len(overviews) - normal_device_total
+    online_device_total = sum(1 for item in overviews if item["device"].last_poll_status in {"ok", "partial"})
+    offline_device_total = max(len(overviews) - online_device_total, 0)
     focus_device_total = sum(1 for item in overviews if item["overview_status"] in {"warning", "major", "critical", "poll_error"})
     day_start_utc, day_end_utc = _local_day_bounds()
     today_new_event_total = sum(
@@ -698,17 +771,18 @@ def dashboard():
     return render_template(
         "dashboard.html",
         **_base_context(
-            page_name="总览",
-            page_description="查看设备运行状态、事件态势和重点告警。",
+            page_name="系统概览",
+            page_description="查看设备运行状态与当前事件统计。",
             device_total=len(overviews),
-            online_devices=sum(1 for item in overviews if item["device"].is_enabled),
+            online_devices=online_device_total,
+            offline_devices=offline_device_total,
             normal_device_total=normal_device_total,
             abnormal_device_total=abnormal_device_total,
             active_alarm_total=active_alarm_total,
             unacked_alarm_total=unacked_alarm_total,
             device_overviews=overviews,
             recent_events=event_views,
-            critical_event_total=sum(1 for item in overviews if item["highest_alarm_severity"] in {"critical", "major"}),
+            critical_event_total=sum(1 for item in overviews if item["highest_alarm_severity"] == "critical"),
             focus_device_total=focus_device_total,
             today_new_event_total=today_new_event_total,
         ),
@@ -837,7 +911,7 @@ def devices():
     profile_map = _profile_map(session)
     return render_template(
         "devices.html",
-        **_base_context(page_name="设备列表", devices=device_rows, profiles=profiles, profile_map=profile_map),
+        **_base_context(page_name="设备管理", devices=device_rows, profiles=profiles, profile_map=profile_map),
     )
 
 
@@ -867,23 +941,99 @@ def device_detail(device_id: int):
     ).scalars().all()
     active_alarms = session.execute(select(ActiveAlarm).where(ActiveAlarm.device_id == device.id)).scalars().all()
     active_alarm_map = {item.id: item for item in active_alarms}
+    trap_ids = {item.trap_event_id for item in recent_events if item.trap_event_id}
+    trap_map = {
+        item.id: item
+        for item in session.execute(select(TrapEvent).where(TrapEvent.id.in_(trap_ids))).scalars().all()
+    } if trap_ids else {}
+    profile_codes = {item.profile_code or DEFAULT_PROFILE_CODE for item in trap_map.values()}
+    rule_map = {
+        (item.profile_code, item.alarm_id): item
+        for item in session.execute(select(AlarmRule).where(AlarmRule.profile_code.in_(profile_codes))).scalars().all()
+    } if profile_codes else {}
     trap_views = [_trap_payload(item, device, profile) for item in recent_traps]
     event_views = [
-        _device_event_payload(item, active_alarm=active_alarm_map.get(item.active_alarm_id), device_name=device.name)
+        _device_event_payload(
+            item,
+            active_alarm=active_alarm_map.get(item.active_alarm_id),
+            device_name=device.name,
+            device_ip=device.ip,
+            rule=rule_map.get(
+                (
+                    (trap_map.get(item.trap_event_id).profile_code if trap_map.get(item.trap_event_id) and trap_map.get(item.trap_event_id).profile_code else DEFAULT_PROFILE_CODE),
+                    item.alarm_id or "",
+                )
+            ),
+            trap_event=trap_map.get(item.trap_event_id) if item.trap_event_id else None,
+        )
         for item in recent_events
     ]
     return render_template(
         "device_detail.html",
         **_base_context(
-            page_name="设备详情",
+            page_name="设备状态",
             device=device,
             profile=profile,
             device_payload=_device_payload(device, profile),
             snmp_control_count=len(controls),
             recent_traps=trap_views,
             recent_events=event_views,
+            open_active_alarm_count=sum(1 for item in active_alarms if item.is_open),
+            active_tab=request.args.get("tab", "realtime"),
         ),
     )
+
+
+@web_bp.post("/devices/<int:device_id>/restore-events")
+@login_required
+@role_required("admin", "operator")
+def restore_device_events(device_id: int):
+    session = get_db_session()
+    device = session.get(Device, device_id)
+    if device is None:
+        flash("设备不存在。", "error")
+        return redirect(url_for("web.devices"))
+    now = datetime.now(timezone.utc)
+    alarms = session.execute(
+        select(ActiveAlarm).where(
+            ActiveAlarm.device_id == device.id,
+            ActiveAlarm.is_open.is_(True),
+        )
+    ).scalars().all()
+    for alarm in alarms:
+        alarm.is_open = False
+        alarm.status = "close"
+        alarm.closed_at = now
+        alarm.updated_at = now
+        alarm.notes = "人工一键恢复"
+        session.add(
+            AlarmEvent(
+                active_alarm_id=alarm.id,
+                trap_event_id=alarm.last_trap_event_id,
+                device_id=alarm.device_id,
+                alarm_obj=alarm.alarm_obj,
+                alarm_id=alarm.alarm_id,
+                severity_code=alarm.severity_code,
+                severity="cleared",
+                status_code=None,
+                status="close",
+                event_type="manual_restore",
+                message="人工一键恢复",
+                occurred_at=now,
+            )
+        )
+    log_operation(
+        session,
+        user_id=current_user.id,
+        username_snapshot=current_user.username,
+        action="restore_device_events",
+        target_type="device",
+        target_id=str(device.id),
+        details_json={"restored_count": len(alarms)},
+    )
+    session.commit()
+    flash(f"已恢复 {len(alarms)} 条未恢复事件。", "success")
+    return redirect(url_for("web.device_detail", device_id=device.id, tab="events"))
 
 
 @web_bp.get("/api/devices/<int:device_id>")
@@ -914,13 +1064,275 @@ def api_device_events(device_id: int):
             item.id: item
             for item in session.execute(select(ActiveAlarm).where(ActiveAlarm.id.in_(active_alarm_ids))).scalars().all()
         }
+    trap_ids = {item.trap_event_id for item in events if item.trap_event_id}
+    trap_map = {
+        item.id: item
+        for item in session.execute(select(TrapEvent).where(TrapEvent.id.in_(trap_ids))).scalars().all()
+    } if trap_ids else {}
+    profile_codes = {item.profile_code or DEFAULT_PROFILE_CODE for item in trap_map.values()}
+    rule_map = {
+        (item.profile_code, item.alarm_id): item
+        for item in session.execute(select(AlarmRule).where(AlarmRule.profile_code.in_(profile_codes))).scalars().all()
+    } if profile_codes else {}
     return jsonify(
         {
             "ok": True,
             "events": [
-                _device_event_payload(item, active_alarm=active_alarm_map.get(item.active_alarm_id), device_name=device.name)
+                _device_event_payload(
+                    item,
+                    active_alarm=active_alarm_map.get(item.active_alarm_id),
+                    device_name=device.name,
+                    device_ip=device.ip,
+                    rule=rule_map.get(
+                        (
+                            (trap_map.get(item.trap_event_id).profile_code if trap_map.get(item.trap_event_id) and trap_map.get(item.trap_event_id).profile_code else DEFAULT_PROFILE_CODE),
+                            item.alarm_id or "",
+                        )
+                    ),
+                    trap_event=trap_map.get(item.trap_event_id) if item.trap_event_id else None,
+                )
                 for item in events
             ],
+        }
+    )
+
+
+@web_bp.get("/api/devices/<int:device_id>/realtime-status")
+@login_required
+def api_device_realtime_status(device_id: int):
+    session = get_db_session()
+    device = session.get(Device, device_id)
+    if device is None:
+        return jsonify({"ok": False, "error": "not_found"}), 404
+
+    latest_key = f"realtime:device:{device_id}:latest"
+    history_key = f"realtime:device:{device_id}:history"
+    latest_payload = None
+    history_rows: list[dict[str, Any]] = []
+    try:
+        redis_client = redis_client_from_app(current_app).redis
+        latest_raw = redis_client.get(latest_key)
+        if latest_raw:
+            latest_payload = json.loads(latest_raw)
+        for item in redis_client.lrange(history_key, -300, -1):
+            try:
+                history_rows.append(json.loads(item))
+            except Exception:
+                continue
+    except Exception as exc:
+        current_app.logger.warning("realtime status redis read failed device_id=%s error=%s", device_id, exc)
+
+    data_status = "empty"
+    last_update_time = None
+    interfaces: list[dict[str, Any]] = []
+    raw_data = None
+    if latest_payload:
+        last_update_time = latest_payload.get("ts") or latest_payload.get("received_at")
+        interfaces = latest_payload.get("interfaces") if isinstance(latest_payload.get("interfaces"), list) else []
+        raw_data = latest_payload.get("raw_data")
+        received_at_text = latest_payload.get("received_at")
+        data_status = "stale"
+        try:
+            received_at = datetime.fromisoformat(str(received_at_text).replace("Z", "+00:00"))
+            if received_at.tzinfo is None:
+                received_at = received_at.replace(tzinfo=timezone.utc)
+            age_seconds = (datetime.now(timezone.utc) - received_at.astimezone(timezone.utc)).total_seconds()
+            data_status = "normal" if age_seconds <= 5 else "stale"
+            if data_status == "stale":
+                stale_log_at = current_app.config.setdefault("_REALTIME_STATUS_STALE_LOG_AT", {})
+                now_monotonic = time.monotonic()
+                if now_monotonic - stale_log_at.get(device_id, 0.0) >= 60:
+                    current_app.logger.warning("realtime status data timeout device_id=%s age_seconds=%.3f", device_id, age_seconds)
+                    stale_log_at[device_id] = now_monotonic
+        except Exception:
+            data_status = "stale"
+
+    return jsonify(
+        {
+            "ok": True,
+            "device_id": device.id,
+            "device_name": device.name,
+            "device_ip": device.ip,
+            "last_update_time": last_update_time,
+            "data_status": data_status,
+            "interfaces": interfaces,
+            "history": history_rows,
+            "raw_data": raw_data,
+        }
+    )
+
+
+def _parse_iso_utc(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _program_status(program: dict[str, Any], now_utc: datetime) -> dict[str, Any]:
+    last_update = _parse_iso_utc(program.get("last_update_time"))
+    age_seconds = (now_utc - last_update).total_seconds() if last_update else None
+    timed_out = bool(age_seconds is None or age_seconds > 30)
+    no_video = not int(program.get("video_bw") or 0)
+    no_audio = not int(program.get("audio_bw") or 0)
+    l1 = int(program.get("l1") or 0)
+    l2 = int(program.get("l2") or 0)
+    l3 = int(program.get("l3") or 0)
+    return {
+        "timed_out": timed_out,
+        "no_video": no_video,
+        "no_audio": no_audio,
+        "error_total": l1 + l2 + l3,
+    }
+
+
+def _format_program_for_api(program: dict[str, Any], now_utc: datetime) -> dict[str, Any]:
+    flags = _program_status(program, now_utc)
+    item = dict(program)
+    item.update(flags)
+    item["total_bw_mbps"] = round((int(item.get("total_bw") or 0) / 1_000_000), 3)
+    item["video_bw_mbps"] = round((int(item.get("video_bw") or 0) / 1_000_000), 3)
+    item["audio_bw_mbps"] = round((int(item.get("audio_bw") or 0) / 1_000_000), 3)
+    item["last_update_time_display"] = format_dt(_parse_iso_utc(item.get("last_update_time")))
+    return item
+
+
+@web_bp.get("/api/devices/<int:device_id>/program-analysis")
+@login_required
+def api_device_program_analysis(device_id: int):
+    session = get_db_session()
+    device = session.get(Device, device_id)
+    if device is None:
+        return jsonify({"ok": False, "error": "not_found"}), 404
+
+    interface_filter = request.args.get("interface", "all")
+    error_filter = request.args.get("error", "all")
+    video_filter = request.args.get("video_codec", "all")
+    audio_filter = request.args.get("audio_codec", "all")
+    keyword = request.args.get("keyword", "").strip().lower()
+    page = max(int(request.args.get("page", "1") or 1), 1)
+    page_size = min(max(int(request.args.get("page_size", "50") or 50), 10), 200)
+    sort_by = request.args.get("sort_by", "default")
+    sort_order = request.args.get("sort_order", "asc")
+
+    redis_client = redis_client_from_app(current_app).redis
+    interfaces = ["ens7f0", "ens7f1"] if interface_filter == "all" else [interface_filter]
+    now_utc = datetime.now(timezone.utc)
+    all_programs: list[dict[str, Any]] = []
+    batches: dict[str, dict[str, Any]] = {}
+    try:
+        for interface_name in interfaces:
+            if interface_name not in {"ens7f0", "ens7f1"}:
+                continue
+            programs_key = f"program:device:{device_id}:{interface_name}:programs"
+            batch_key = f"program:device:{device_id}:{interface_name}:batch"
+            for raw in redis_client.hgetall(programs_key).values():
+                try:
+                    all_programs.append(_format_program_for_api(json.loads(raw), now_utc))
+                except Exception:
+                    continue
+            batch_raw = redis_client.get(batch_key)
+            if batch_raw:
+                try:
+                    batches[interface_name] = json.loads(batch_raw)
+                except Exception:
+                    batches[interface_name] = {}
+    except Exception as exc:
+        current_app.logger.warning("program analysis redis read failed device_id=%s error=%s", device_id, exc)
+
+    def matches(item: dict[str, Any]) -> bool:
+        if error_filter == "l1" and int(item.get("l1") or 0) <= 0:
+            return False
+        if error_filter == "l2" and int(item.get("l2") or 0) <= 0:
+            return False
+        if error_filter == "l3" and int(item.get("l3") or 0) <= 0:
+            return False
+        if video_filter == "none" and not item.get("no_video"):
+            return False
+        if video_filter not in {"all", "none"} and (item.get("video_codec") or "") != video_filter:
+            return False
+        if audio_filter == "none" and not item.get("no_audio"):
+            return False
+        if audio_filter not in {"all", "none"} and (item.get("audio_codec") or "") != audio_filter:
+            return False
+        if keyword:
+            haystack = f"{item.get('no')} {item.get('stream')} {item.get('multicast_address')} {item.get('video_codec')} {item.get('audio_codec')}".lower()
+            if keyword not in haystack:
+                return False
+        return True
+
+    filtered = [item for item in all_programs if matches(item)]
+
+    def sort_key(item: dict[str, Any]):
+        if sort_by == "no":
+            return (int(item.get("no") or 0),)
+        if sort_by in {"total_bw", "video_bw", "audio_bw", "l1", "l2", "l3"}:
+            return (int(item.get(sort_by) or 0),)
+        if sort_by == "last_update_time":
+            return (item.get("last_update_time") or "",)
+        return (item.get("interface") or "", int(item.get("no") or 0))
+
+    filtered.sort(key=sort_key, reverse=(sort_order == "desc" and sort_by != "default"))
+    total = len(filtered)
+    start = (page - 1) * page_size
+    page_rows = filtered[start : start + page_size]
+
+    port_summary: dict[str, dict[str, Any]] = {}
+    for interface_name in ["ens7f0", "ens7f1"]:
+        rows = [item for item in all_programs if item.get("interface") == interface_name]
+        batch = batches.get(interface_name, {})
+        last_update = _parse_iso_utc(batch.get("last_update_time"))
+        data_status = "empty" if not batch else ("stale" if not last_update or (now_utc - last_update).total_seconds() > 10 else "normal")
+        if data_status == "stale":
+            stale_log_at = current_app.config.setdefault("_PROGRAM_ANALYSIS_STALE_LOG_AT", {})
+            key = f"{device_id}:{interface_name}"
+            now_monotonic = time.monotonic()
+            if now_monotonic - stale_log_at.get(key, 0.0) >= 60:
+                current_app.logger.warning("program analysis port data timeout device_id=%s interface=%s", device_id, interface_name)
+                stale_log_at[key] = now_monotonic
+        port_summary[interface_name] = {
+            "total": int(batch.get("total") or len(rows) or 0),
+            "received_count": len(rows),
+            "total_bandwidth": sum(int(item.get("total_bw") or 0) for item in rows),
+            "last_batch_start": batch.get("last_batch_start"),
+            "last_batch_end": batch.get("last_batch_end"),
+            "last_duration": batch.get("last_duration"),
+            "last_update_time": batch.get("last_update_time"),
+            "last_update_time_display": format_dt(last_update),
+            "data_status": data_status,
+        }
+
+    stale_program_count = sum(1 for item in all_programs if item.get("timed_out"))
+    if stale_program_count:
+        stale_log_at = current_app.config.setdefault("_PROGRAM_STALE_LOG_AT", {})
+        now_monotonic = time.monotonic()
+        if now_monotonic - stale_log_at.get(device_id, 0.0) >= 60:
+            current_app.logger.warning("program analysis program data timeout device_id=%s count=%s", device_id, stale_program_count)
+            stale_log_at[device_id] = now_monotonic
+
+    last_update_time = max((value.get("last_update_time") for value in port_summary.values() if value.get("last_update_time")), default=None)
+    last_update_dt = _parse_iso_utc(last_update_time)
+    total_programs = sum(value["received_count"] for value in port_summary.values())
+    summary = {
+        "total_programs": total_programs,
+        "total_bandwidth": sum(int(item.get("total_bw") or 0) for item in all_programs),
+        "ens7f0": port_summary["ens7f0"],
+        "ens7f1": port_summary["ens7f1"],
+    }
+    return jsonify(
+        {
+            "ok": True,
+            "device_id": device.id,
+            "last_update_time": last_update_time,
+            "last_update_time_display": format_dt(last_update_dt),
+            "summary": summary,
+            "programs": page_rows,
+            "pagination": {"page": page, "page_size": page_size, "total": total, "pages": max((total + page_size - 1) // page_size, 1)},
         }
     )
 
@@ -1921,8 +2333,8 @@ def traps():
     return render_template(
         "traps.html",
         **_base_context(
-            page_name="Trap 日志",
-            page_description="查看原始 Trap 接收批次、分片内容和入库结果。",
+            page_name="设备日志",
+            page_description="查看设备原始日志、Trap 信息和状态变化记录。",
             traps=grouped_traps,
             devices=list(devices.values()),
             severity_options=severity_option_values,
@@ -1966,7 +2378,7 @@ def trap_detail(trap_id: int):
     return render_template(
         "trap_detail.html",
         **_base_context(
-            page_name=f"Trap 详情 - {trap.id}",
+            page_name=f"设备日志详情 - {trap.id}",
             trap=trap,
             payload=payload,
             device=device,
@@ -2027,6 +2439,12 @@ def alarms():
             if rule and rule.description and rule.description != (item.alarm_id or "")
             else alarm_description_label(item.alarm_id)
         )
+        effective_severity = _effective_event_severity(
+            item,
+            active_alarm=active_alarm,
+            rule=rule,
+            trap_event=trap_event,
+        )
         row = {
             "event": item,
             "active_alarm": active_alarm,
@@ -2034,38 +2452,42 @@ def alarms():
             "device_name": device_names.get(item.device_id, "未知设备"),
             "device_ip": "-" if item.device_id not in device_map else device_map[item.device_id].ip,
             "alarm_description": alarm_description,
-            "severity_label": severity_label(item.severity),
+            "severity": effective_severity,
+            "severity_label": severity_label(effective_severity),
             "status_label": status_label(item.status),
-            "active_state_label": "未恢复" if active_alarm and active_alarm.is_open else "已恢复",
-            "ack_state_label": "已确认" if active_alarm and active_alarm.is_acknowledged else "未确认",
+            "active_state_label": (
+                AUTO_RECOVERY_MESSAGE
+                if (
+                    item.message == AUTO_RECOVERY_MESSAGE
+                    or (active_alarm and active_alarm.notes == AUTO_RECOVERY_MESSAGE and not active_alarm.is_open)
+                )
+                else ("未恢复" if _event_is_current_open(item, active_alarm) else "已恢复")
+            ),
+            "ack_state_label": "已确认" if _event_is_current_unacked(item, active_alarm) is False and active_alarm and active_alarm.is_acknowledged else "未确认",
         }
+        row["severity_sort"] = effective_severity
+        row["is_open"] = _event_is_current_open(item, active_alarm)
+        row["is_unacked"] = _event_is_current_unacked(item, active_alarm)
         row["event_state_label"] = "恢复事件" if item.status == "close" or item.severity == "cleared" else "状态事件"
         row["occurrence_count"] = 0 if active_alarm is None else int(active_alarm.occurrence_count or 0)
         row["device_detail_url"] = url_for("web.device_detail", device_id=item.device_id) if item.device_id else None
         row["trap_detail_url"] = url_for("web.trap_detail", trap_id=item.trap_event_id) if item.trap_event_id else None
         row["trap_summary"] = None if trap_event is None else trap_event.raw_summary
         row["restored_at"] = None if not active_alarm or active_alarm.is_open else format_dt(active_alarm.closed_at)
-        row["can_ack"] = bool(
-            active_alarm
-            and active_alarm.is_open
-            and not active_alarm.is_acknowledged
-            and item.status in {"report", "change"}
-            and item.severity != "cleared"
-            and (active_alarm.last_trap_event_id == item.trap_event_id if item.trap_event_id else True)
-        )
+        row["can_ack"] = bool(row["is_open"] and row["is_unacked"])
         if device_id and str(item.device_id or "") != device_id:
             continue
-        if severity and item.severity != severity:
+        if severity and effective_severity != severity:
             continue
         if history_status and item.status != history_status:
             continue
-        if ack_state == "ack" and not (active_alarm and active_alarm.is_acknowledged):
+        if ack_state == "ack" and row["ack_state_label"] != "已确认":
             continue
-        if ack_state == "unack" and not (active_alarm and not active_alarm.is_acknowledged):
+        if ack_state == "unack" and row["ack_state_label"] != "未确认":
             continue
-        if open_state == "open" and not (active_alarm and active_alarm.is_open):
+        if open_state == "open" and not row["is_open"]:
             continue
-        if open_state == "closed" and active_alarm and active_alarm.is_open:
+        if open_state == "closed" and row["is_open"]:
             continue
         occurred_at_utc = _as_utc(item.occurred_at)
         if start_dt and occurred_at_utc and occurred_at_utc < start_dt:
@@ -2092,7 +2514,6 @@ def alarms():
                 continue
         rows.append(row)
 
-    rows.sort(key=_event_priority, reverse=True)
     active_count = sum(1 for item in active_map.values() if item.is_open)
     unacked_count = sum(1 for item in active_map.values() if item.is_open and not item.is_acknowledged)
     severe_major_count = sum(1 for item in active_map.values() if item.is_open and item.severity in {"critical", "major"})
@@ -2122,7 +2543,7 @@ def alarms():
         "alarms.html",
         **_base_context(
             page_name="事件中心",
-            page_description="集中查看、筛选和确认设备告警事件。",
+            page_description="按时间顺序查看和筛选设备事件。",
             alarm_rows=rows,
             devices=devices,
             active_count=active_count,

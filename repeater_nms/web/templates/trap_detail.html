@@ -43,9 +43,9 @@
   </style>
 
   <div class="detail-toolbar">
-    <a class="button secondary" href="{{ url_for('web.traps') }}">返回 Trap 日志</a>
+    <a class="button secondary" href="{{ url_for('web.traps') }}">返回设备日志</a>
     {% if device %}
-      <a class="button secondary" href="{{ url_for('web.device_detail', device_id=device.id) }}">查看设备详情</a>
+      <a class="button secondary" href="{{ url_for('web.device_detail', device_id=device.id) }}">查看设备状态</a>
     {% endif %}
   </div>
 
@@ -57,7 +57,7 @@
   </div>
 
   <section class="card" style="margin-bottom:18px;">
-    <h3 style="margin-top:0;">Trap 基本信息</h3>
+    <h3 style="margin-top:0;">设备日志基本信息</h3>
     <table>
       <tbody>
         <tr><th>来源 IP</th><td>{{ trap.source_ip }}</td><th>来源端口</th><td>{{ trap.source_port or '-' }}</td></tr>

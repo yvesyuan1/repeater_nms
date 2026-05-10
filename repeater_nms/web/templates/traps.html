@@ -3,258 +3,144 @@
 {% block content %}
   <style>
     .trap-filter-card {
-      margin-bottom: 16px;
-      padding: 14px;
-      border: 1px solid var(--line);
-      border-radius: 16px;
+      padding: 10px;
+      margin-bottom: 10px;
       background: var(--panel-alt);
-    }
-    .trap-filter-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      margin-bottom: 12px;
     }
     .trap-filter-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
+      grid-template-columns: 0.9fr 0.9fr 1.2fr minmax(220px, 1fr) auto auto;
+      gap: 8px;
+      align-items: end;
     }
-    .trap-filter-grid label {
-      display: grid;
+    .trap-filter-grid label { display: grid; gap: 4px; }
+    .log-table { min-width: 1180px; }
+    .operation-cell {
+      display: flex;
+      flex-wrap: wrap;
       gap: 6px;
     }
-    .trap-actions {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-top: 12px;
+    .split-detail {
+      margin-top: 6px;
+      min-width: 100%;
     }
-    .trap-list {
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: #fff;
-      box-shadow: var(--shadow-soft);
-      overflow: hidden;
-    }
-    .trap-head {
-      display: grid;
-      grid-template-columns: 160px 150px 110px 1.1fr 100px 100px 120px 120px;
-      gap: 10px;
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--line);
-      background: #f6f9fc;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-    }
-    .trap-row {
-      border-bottom: 1px solid var(--line);
-    }
-    .trap-row:last-child {
-      border-bottom: 0;
-    }
-    .trap-main {
-      display: grid;
-      grid-template-columns: 160px 150px 110px 1.1fr 100px 100px 120px 120px;
-      gap: 10px;
-      align-items: center;
-      padding: 13px 16px;
-    }
-    .trap-title {
-      font-weight: 700;
-      line-height: 1.45;
-    }
-    .trap-sub {
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.6;
-    }
-    .trap-actions-inline {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: flex-end;
-    }
-    .trap-detail {
-      padding: 0 16px 14px;
-    }
-    .trap-detail details {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: var(--panel-alt);
-      padding: 10px 12px;
-    }
-    .trap-detail summary {
+    .split-detail summary {
       cursor: pointer;
       color: var(--brand);
-      font-weight: 600;
       list-style: none;
     }
-    .trap-detail summary::-webkit-details-marker {
-      display: none;
-    }
+    .split-detail summary::-webkit-details-marker { display: none; }
     .split-list {
       display: grid;
-      gap: 8px;
-      margin-top: 12px;
+      gap: 6px;
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      background: var(--panel-alt);
     }
     .split-item {
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid #e2eaf2;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
       background: #fff;
+      line-height: 1.6;
     }
-    .split-item .meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-bottom: 6px;
-    }
-    @media (max-width: 1320px) {
-      .trap-filter-grid {
-        grid-template-columns: 1fr 1fr;
-      }
-      .trap-head,
-      .trap-main {
-        grid-template-columns: 150px 130px 100px 1fr 90px 90px 110px 110px;
-      }
-    }
-    @media (max-width: 980px) {
-      .trap-head {
-        display: none;
-      }
-      .trap-main {
-        grid-template-columns: 1fr;
-        align-items: start;
-      }
-      .trap-actions-inline {
-        justify-content: flex-start;
-      }
+    @media (max-width: 1000px) {
+      .trap-filter-grid { grid-template-columns: 1fr 1fr; }
     }
     @media (max-width: 720px) {
-      .trap-filter-grid {
-        grid-template-columns: 1fr;
-      }
+      .trap-filter-grid { grid-template-columns: 1fr; }
     }
   </style>
 
-  <div class="trap-filter-card">
-    <div class="trap-filter-head">
-      <div>
-        <div class="muted">同一 UDP Trap PDU 会按 `pdu_id` 聚合，展开后可看到拆分入库的分片记录。</div>
-      </div>
-      <div class="muted" id="sse-status">实时通道：连接中</div>
+  <form method="get" class="trap-filter-card">
+    <div class="trap-filter-grid">
+      <label>
+        <div class="muted">日志类型</div>
+        <select name="trap_type">
+          <option value="">全部类型</option>
+          {% for name in trap_type_options %}
+            <option value="{{ name }}" {% if filter_trap_type == name %}selected{% endif %}>{{ name|trap_type_label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <div class="muted">原始级别</div>
+        <select name="severity">
+          <option value="">全部级别</option>
+          {% for name in severity_options %}
+            <option value="{{ name }}" {% if filter_severity == name %}selected{% endif %}>{{ name|severity_label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <div class="muted">设备</div>
+        <select name="device_id">
+          <option value="">全部设备</option>
+          {% for item in devices %}
+            <option value="{{ item.id }}" {% if filter_device_id == item.id %}selected{% endif %}>{{ item.name }} / {{ item.ip }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <div class="muted">关键字</div>
+        <input type="text" name="keyword" value="{{ filter_keyword }}" placeholder="PDU、IP、摘要、对象">
+      </label>
+      <button type="submit">查询</button>
+      <a class="button secondary" href="{{ url_for('web.traps') }}">重置</a>
     </div>
-    <form method="get">
-      <div class="trap-filter-grid">
-        <label>
-          <div class="muted">Trap 类型</div>
-          <select name="trap_type">
-            <option value="">全部类型</option>
-            {% for name in trap_type_options %}
-              <option value="{{ name }}" {% if filter_trap_type == name %}selected{% endif %}>{{ name|trap_type_label }}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <label>
-          <div class="muted">等级</div>
-          <select name="severity">
-            <option value="">全部等级</option>
-            {% for name in severity_options %}
-              <option value="{{ name }}" {% if filter_severity == name %}selected{% endif %}>{{ name|severity_label }}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <label>
-          <div class="muted">设备</div>
-          <select name="device_id">
-            <option value="">全部设备</option>
-            {% for item in devices %}
-              <option value="{{ item.id }}" {% if filter_device_id == item.id %}selected{% endif %}>{{ item.name }} / {{ item.ip }}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <label>
-          <div class="muted">关键词</div>
-          <input type="text" name="keyword" value="{{ filter_keyword }}" placeholder="PDU、IP、摘要、对象">
-        </label>
-      </div>
-      <div class="trap-actions">
-        <div class="muted">共 {{ pager.total }} 个接收批次，当前第 {{ pager.page }} / {{ pager.total_pages }} 页</div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;">
-          <button type="submit">应用筛选</button>
-          <a class="button secondary" href="{{ url_for('web.traps') }}">重置</a>
-        </div>
-      </div>
-    </form>
+  </form>
+
+  <div class="table-scroll">
+    <table class="log-table">
+      <thead>
+        <tr>
+          <th>接收时间</th>
+          <th>设备名称</th>
+          <th>管理 IP</th>
+          <th>日志类型</th>
+          <th>原始级别</th>
+          <th>原始内容摘要</th>
+          <th>解析状态</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in traps %}
+          <tr>
+            <td>{{ item.received_at }}</td>
+            <td>{{ item.device_name }}</td>
+            <td>{{ item.source_ip }}</td>
+            <td>{{ item.trap_name_label or item.trap_type_label }}</td>
+            <td><span class="tag {{ item.severity or 'info' }}">{{ item.severity_label or '信息' }}</span></td>
+            <td>{{ item.summary_zh or (item.summary_lines[0] if item.summary_lines else '-') }}</td>
+            <td><span class="tag {{ 'partial' if item.row_count > 1 else 'ok' }}">{{ '已解析 / ' ~ item.row_count ~ ' 条' }}</span></td>
+            <td>
+              <div class="operation-cell">
+                <a class="button secondary" href="{{ item.detail_url }}">查看原始内容</a>
+                <details class="split-detail">
+                  <summary>查看关联事件</summary>
+                  <div class="split-list">
+                    {% for split in item.split_rows %}
+                      <div class="split-item">
+                        <span class="tag {{ split.severity or 'info' }}">{{ split.severity_label or '信息' }}</span>
+                        <span class="tag {{ split.status or 'unknown' }}">{{ split.status_label or '无状态' }}</span>
+                        记录 {{ split.id }}：{{ split.raw_summary or split.summary_zh or '-' }}
+                      </div>
+                    {% endfor %}
+                  </div>
+                </details>
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="8">暂无设备日志。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 
-  <section class="trap-list">
-    <div class="trap-head">
-      <div>接收时间</div>
-      <div>设备 / 源 IP</div>
-      <div>Trap 类型</div>
-      <div>接收批次摘要</div>
-      <div>分片数</div>
-      <div>等级</div>
-      <div>PDU ID</div>
-      <div>操作</div>
-    </div>
-    {% for item in traps %}
-      <article class="trap-row">
-        <div class="trap-main">
-          <div>
-            <div class="trap-title">{{ item.received_at }}</div>
-            <div class="trap-sub">接收时间</div>
-          </div>
-          <div>
-            <div class="trap-title">{{ item.device_name }}</div>
-            <div class="trap-sub">{{ item.source_ip }}</div>
-          </div>
-          <div>
-            <div class="trap-title">{{ item.trap_name_label or item.trap_type_label }}</div>
-            <div class="trap-sub">{{ item.profile_title }}</div>
-          </div>
-          <div>
-            <div class="trap-title">{{ item.summary_zh or item.summary_lines[0] }}</div>
-            <div class="trap-sub">{{ item.summary_lines[0] if item.summary_lines else '-' }}</div>
-          </div>
-          <div><span class="tag info">{{ item.row_count }} 条</span></div>
-          <div><span class="tag {{ item.severity or 'info' }}">{{ item.severity_label or '性能/信息' }}</span></div>
-          <div class="trap-sub">{{ item.pdu_id or '-' }}</div>
-          <div class="trap-actions-inline">
-            <a class="button secondary" href="{{ item.detail_url }}">查看详情</a>
-          </div>
-        </div>
-        <div class="trap-detail">
-          <details>
-            <summary>展开分片记录</summary>
-            <div class="split-list">
-              {% for split in item.split_rows %}
-                <div class="split-item">
-                  <div class="meta">
-                    <span class="tag {{ split.severity or 'info' }}">{{ split.severity_label or '性能/信息' }}</span>
-                    <span class="tag {{ split.status or 'unknown' }}">{{ split.status_label or '无状态' }}</span>
-                    <span class="tag info">ID {{ split.id }}</span>
-                  </div>
-                  <div class="trap-title">{{ split.raw_summary or split.summary_zh or '-' }}</div>
-                  <div class="trap-sub">{{ split.alarm_obj or '-' }}{% if split.alarm_id %} / {{ split.alarm_id }}{% endif %}</div>
-                </div>
-              {% endfor %}
-            </div>
-          </details>
-        </div>
-      </article>
-    {% else %}
-      <div class="soft-note" style="margin:16px;">暂无 Trap 日志。</div>
-    {% endfor %}
-  </section>
-
   <div class="pager">
+    <div class="muted">共 {{ pager.total }} 个接收批次，当前第 {{ pager.page }} / {{ pager.total_pages }} 页</div>
     <div class="page-links">
       {% if pager.first_url %}<a href="{{ pager.first_url }}">首页</a>{% endif %}
       {% if pager.prev_url %}<a href="{{ pager.prev_url }}">上一页</a>{% endif %}
@@ -269,12 +155,4 @@
       {% if pager.last_url %}<a href="{{ pager.last_url }}">末页</a>{% endif %}
     </div>
   </div>
-
-  <script>
-    const source = new EventSource("{{ url_for('web.event_stream') }}");
-    const sseStatus = document.getElementById("sse-status");
-    source.onopen = () => { sseStatus.textContent = "实时通道：已连接"; };
-    source.addEventListener("heartbeat", () => { sseStatus.textContent = "实时通道：已连接，等待新 Trap"; });
-    source.onerror = () => { sseStatus.textContent = "实时通道：重连中"; };
-  </script>
 {% endblock %}

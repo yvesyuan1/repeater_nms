@@ -2,260 +2,79 @@
 
 {% block content %}
   <style>
-    .status-strip {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-    .status-card {
-      padding: 14px 16px;
-      border-radius: 16px;
-      border: 1px solid var(--line);
-      background: #fff;
-      box-shadow: var(--shadow-soft);
-    }
-    .status-card.emphasis {
-      border-color: #f3d0cb;
-      background: linear-gradient(180deg, #fff7f6 0%, #fff 100%);
-    }
-    .status-card.warning {
-      border-color: #f3e0b6;
-      background: linear-gradient(180deg, #fffaf0 0%, #fff 100%);
-    }
-    .status-card .label {
-      color: var(--muted);
-      font-size: 12px;
-    }
-    .status-card .value {
-      margin-top: 8px;
-      font-size: 28px;
-      font-weight: 700;
-    }
     .filter-panel {
-      margin-bottom: 16px;
-      padding: 14px;
-      border: 1px solid var(--line);
-      border-radius: 16px;
+      padding: 10px;
+      margin-bottom: 10px;
       background: var(--panel-alt);
     }
     .filter-toolbar {
       display: grid;
-      grid-template-columns: 1.1fr 0.7fr 0.8fr 0.8fr 0.9fr 0.9fr 1.2fr auto auto;
-      gap: 10px;
+      grid-template-columns: 1.1fr 0.8fr 0.8fr 0.95fr 0.95fr 1.2fr auto auto;
+      gap: 8px;
       align-items: end;
     }
-    .filter-toolbar label,
-    .filter-more-grid label {
+    .filter-toolbar label {
       display: grid;
-      gap: 6px;
+      gap: 4px;
       min-width: 0;
     }
-    .filter-toolbar .muted,
-    .filter-more-grid .muted {
-      font-size: 12px;
-    }
-    .filter-more {
-      margin-top: 12px;
-    }
-    .filter-more summary {
-      cursor: pointer;
-      color: var(--brand);
-      font-size: 13px;
-      font-weight: 600;
-      list-style: none;
-    }
-    .filter-more summary::-webkit-details-marker {
-      display: none;
-    }
-    .filter-more-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr auto;
-      gap: 10px;
-      margin-top: 12px;
-      align-items: end;
-    }
-    .event-list {
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      overflow: hidden;
-      background: #fff;
-      box-shadow: var(--shadow-soft);
-    }
-    .event-head {
-      display: grid;
-      grid-template-columns: 152px 1.2fr 88px 1.55fr 90px 90px 76px 320px;
-      gap: 10px;
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--line);
-      background: #f6f9fc;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-    }
-    .event-row {
-      border-bottom: 1px solid var(--line);
-      background: #fff;
-    }
-    .event-row:last-child {
-      border-bottom: 0;
-    }
-    .event-row.emphasis {
-      background: #fffaf8;
-    }
-    .event-main {
-      display: grid;
-      grid-template-columns: 152px 1.2fr 88px 1.55fr 90px 90px 76px 320px;
-      gap: 10px;
-      align-items: center;
-      padding: 13px 16px;
-    }
-    .event-content {
-      min-width: 0;
-    }
-    .event-title {
-      font-weight: 700;
-      line-height: 1.45;
-    }
-    .event-sub,
-    .event-time {
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.6;
-    }
-    .event-actions {
+    .event-table { min-width: 1280px; }
+    .operation-cell {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      justify-content: flex-end;
+      gap: 6px;
       align-items: center;
-    }
-    .event-actions form {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .event-actions input[type="text"] {
-      width: 132px;
-      min-height: 36px;
-      padding: 7px 10px;
     }
     .event-detail {
-      padding: 0 16px 14px 16px;
-    }
-    .event-detail details {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: var(--panel-alt);
-      padding: 10px 12px;
+      margin-top: 6px;
+      min-width: 100%;
     }
     .event-detail summary {
       cursor: pointer;
-      font-weight: 600;
       color: var(--brand);
       list-style: none;
     }
-    .event-detail summary::-webkit-details-marker {
-      display: none;
-    }
+    .event-detail summary::-webkit-details-marker { display: none; }
     .event-detail-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px 12px;
-      margin-top: 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      background: var(--panel-alt);
     }
     .event-detail-field {
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid #e2eaf2;
-      background: #fff;
+      word-break: break-word;
+      line-height: 1.6;
     }
-    .event-detail-field .label {
+    .event-detail-field strong {
+      display: block;
       color: var(--muted);
       font-size: 12px;
-      margin-bottom: 5px;
+      font-weight: 400;
     }
-    .event-detail-field .value {
-      font-size: 13px;
-      line-height: 1.65;
-      word-break: break-word;
-    }
-    .pager-card {
-      margin-top: 16px;
-      padding: 14px 16px;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: #fff;
-      box-shadow: var(--shadow-soft);
-    }
+    .pager-card { padding: 8px 10px; margin-top: 10px; }
     .pager-form {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 8px;
       align-items: center;
       justify-content: flex-end;
     }
     .pager-form input,
     .pager-form select {
       width: auto;
-      min-width: 82px;
+      min-width: 72px;
     }
-    @media (max-width: 1360px) {
-      .filter-toolbar {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-      }
-      .event-head,
-      .event-main {
-        grid-template-columns: 140px 1.1fr 88px 1.3fr 86px 86px 70px 250px;
-      }
+    @media (max-width: 1200px) {
+      .filter-toolbar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .event-detail-grid { grid-template-columns: 1fr; }
     }
-    @media (max-width: 1120px) {
-      .status-strip {
-        grid-template-columns: 1fr 1fr;
-      }
-      .event-head {
-        display: none;
-      }
-      .event-main {
-        grid-template-columns: 1fr;
-        align-items: start;
-      }
-      .event-actions {
-        justify-content: flex-start;
-      }
-      .event-detail-grid {
-        grid-template-columns: 1fr 1fr;
-      }
-    }
-    @media (max-width: 760px) {
-      .status-strip,
-      .filter-toolbar,
-      .filter-more-grid,
-      .event-detail-grid {
-        grid-template-columns: 1fr;
-      }
+    @media (max-width: 720px) {
+      .filter-toolbar { grid-template-columns: 1fr; }
     }
   </style>
-
-  <section class="status-strip">
-    <div class="status-card emphasis">
-      <div class="label">活动事件</div>
-      <div class="value">{{ active_count }}</div>
-    </div>
-    <div class="status-card emphasis">
-      <div class="label">未确认事件</div>
-      <div class="value">{{ unacked_count }}</div>
-    </div>
-    <div class="status-card warning">
-      <div class="label">严重 / 主要事件</div>
-      <div class="value">{{ severe_major_count }}</div>
-    </div>
-    <div class="status-card">
-      <div class="label">今日新增事件</div>
-      <div class="value">{{ today_new_event_total }}</div>
-    </div>
-  </section>
 
   <form method="get" class="filter-panel">
     <div class="filter-toolbar">
@@ -269,28 +88,20 @@
         </select>
       </label>
       <label>
-        <div class="muted">告警等级</div>
+        <div class="muted">事件级别</div>
         <select name="severity">
-          <option value="">全部等级</option>
+          <option value="">全部级别</option>
           {% for name in ['critical', 'major', 'minor', 'warning', 'indeterminate', 'cleared'] %}
             <option value="{{ name }}" {% if filters.severity == name %}selected{% endif %}>{{ name|severity_label }}</option>
           {% endfor %}
         </select>
       </label>
       <label>
-        <div class="muted">事件状态</div>
+        <div class="muted">当前状态</div>
         <select name="open_state">
           <option value="all" {% if filters.open_state == 'all' %}selected{% endif %}>全部</option>
-          <option value="open" {% if filters.open_state == 'open' %}selected{% endif %}>活动中</option>
+          <option value="open" {% if filters.open_state == 'open' %}selected{% endif %}>未恢复</option>
           <option value="closed" {% if filters.open_state == 'closed' %}selected{% endif %}>已恢复</option>
-        </select>
-      </label>
-      <label>
-        <div class="muted">确认状态</div>
-        <select name="ack_state">
-          <option value="">全部</option>
-          <option value="unack" {% if filters.ack_state == 'unack' %}selected{% endif %}>未确认</option>
-          <option value="ack" {% if filters.ack_state == 'ack' %}selected{% endif %}>已确认</option>
         </select>
       </label>
       <label>
@@ -302,123 +113,72 @@
         <input type="datetime-local" name="end_at" value="{{ filters.end_at }}">
       </label>
       <label>
-        <div class="muted">关键词</div>
-        <input type="text" name="keyword" value="{{ filters.keyword }}" placeholder="设备、告警内容、IP、摘要">
+        <div class="muted">关键字</div>
+        <input type="text" name="keyword" value="{{ filters.keyword }}" placeholder="设备、IP、事件、摘要">
       </label>
-      <button type="submit">应用筛选</button>
+      <button type="submit">查询</button>
       <a class="button secondary" href="{{ url_for('web.alarms') }}">重置</a>
     </div>
-
-    <details class="filter-more">
-      <summary>更多筛选</summary>
-      <div class="filter-more-grid">
-        <label>
-          <div class="muted">事件类型</div>
-          <select name="history_status">
-            <option value="">全部</option>
-            {% for name in ['report', 'change', 'close'] %}
-              <option value="{{ name }}" {% if filters.history_status == name %}selected{% endif %}>{{ name|status_label }}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <label>
-          <div class="muted">每页条数</div>
-          <select name="per_page">
-            {% for size in per_page_options %}
-              <option value="{{ size }}" {% if filters.per_page == size|string %}selected{% endif %}>{{ size }}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <div class="muted">默认按“未恢复 + 未确认、高等级、最新发生”排序。</div>
-      </div>
-    </details>
+    <input type="hidden" name="per_page" value="{{ filters.per_page }}">
   </form>
 
-  <section class="event-list">
-    <div class="event-head">
-      <div>发生时间</div>
-      <div>设备</div>
-      <div>等级</div>
-      <div>告警内容</div>
-      <div>当前状态</div>
-      <div>确认状态</div>
-      <div>累计次数</div>
-      <div>操作</div>
-    </div>
-    {% for row in alarm_rows %}
-      {% set event = row.event %}
-      {% set active_alarm = row.active_alarm %}
-      <article class="event-row {{ 'emphasis' if row.can_ack or (event.severity in ['critical', 'major'] and row.active_state_label == '未恢复') else '' }}">
-        <div class="event-main">
-          <div>
-            <div class="event-time">{{ event.occurred_at|dt }}</div>
-            <div class="event-sub">{{ row.event_state_label }}</div>
-          </div>
-          <div class="event-content">
-            <div class="event-title">{{ row.device_name }}</div>
-            <div class="event-sub">{{ row.device_ip }}</div>
-          </div>
-          <div><span class="tag {{ event.severity or '' }}">{{ row.severity_label }}</span></div>
-          <div class="event-content">
-            <div class="event-title">{{ row.alarm_description if row.alarm_description != '-' else (event.alarm_id or '-') }}</div>
-            <div class="event-sub">{{ event.alarm_obj or '未知对象' }}</div>
-          </div>
-          <div><span class="tag {{ 'warning' if row.active_state_label == '未恢复' else 'close' }}">{{ row.active_state_label }}</span></div>
-          <div><span class="tag {{ 'warning' if row.ack_state_label == '未确认' else 'acknowledged' }}">{{ row.ack_state_label }}</span></div>
-          <div class="event-title">{{ row.occurrence_count }}</div>
-          <div class="event-actions">
-            {% if row.can_ack and current_user.role in ['admin', 'operator'] %}
-              <form method="post" action="{{ url_for('web.ack_alarm', alarm_id=active_alarm.id) }}">
-                <input type="text" name="note" placeholder="确认备注">
-                <button type="submit">确认</button>
-              </form>
-            {% endif %}
-            {% if row.device_detail_url %}
-              <a class="button secondary" href="{{ row.device_detail_url }}">设备详情</a>
-            {% endif %}
-            {% if row.trap_detail_url %}
-              <a class="button secondary" href="{{ row.trap_detail_url }}">查看 Trap</a>
-            {% endif %}
-          </div>
-        </div>
-        <div class="event-detail">
-          <details>
-            <summary>展开详情</summary>
-            <div class="event-detail-grid">
-              <div class="event-detail-field">
-                <div class="label">首次发生 / 最后发生</div>
-                <div class="value">
-                  {% if active_alarm %}
-                    {{ active_alarm.first_seen_at|dt }} / {{ active_alarm.last_seen_at|dt }}
-                  {% else %}
-                    {{ event.occurred_at|dt }} / {{ event.occurred_at|dt }}
-                  {% endif %}
-                </div>
+  <div class="table-scroll">
+    <table class="event-table">
+      <thead>
+        <tr>
+          <th>发生时间</th>
+          <th>恢复时间</th>
+          <th>设备名称</th>
+          <th>管理 IP</th>
+          <th>事件级别</th>
+          <th>事件名称</th>
+          <th>当前状态</th>
+          <th>事件来源</th>
+          <th>简要描述</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in alarm_rows %}
+          {% set event = row.event %}
+          <tr>
+            <td>{{ event.occurred_at|dt }}</td>
+            <td>{{ row.restored_at or '-' }}</td>
+            <td>{{ row.device_name }}</td>
+            <td>{{ row.device_ip }}</td>
+            <td><span class="tag {{ row.severity or '' }}">{{ row.severity_label }}</span></td>
+            <td>{{ row.alarm_description if row.alarm_description != '-' else (event.alarm_id or '-') }}</td>
+            <td><span class="tag {{ 'warning' if row.active_state_label == '未恢复' else ('ok' if row.active_state_label == '系统检查正常，自动恢复' else 'close') }}">{{ row.active_state_label }}</span></td>
+            <td>{{ event.event_type or 'Trap' }}</td>
+            <td>{{ event.message or row.trap_summary or '-' }}</td>
+            <td>
+              <div class="operation-cell">
+                <details class="event-detail">
+                  <summary>查看详情</summary>
+                  <div class="event-detail-grid">
+                    <div class="event-detail-field"><strong>设备信息</strong>{{ row.device_name }} / {{ row.device_ip }}</div>
+                    <div class="event-detail-field"><strong>事件名称</strong>{{ row.alarm_description if row.alarm_description != '-' else (event.alarm_id or '-') }}</div>
+                    <div class="event-detail-field"><strong>事件级别</strong>{{ row.severity_label }}</div>
+                    <div class="event-detail-field"><strong>发生时间</strong>{{ event.occurred_at|dt }}</div>
+                    <div class="event-detail-field"><strong>恢复时间</strong>{{ row.restored_at or '-' }}</div>
+                    <div class="event-detail-field"><strong>当前状态</strong>{{ row.active_state_label }}</div>
+                    <div class="event-detail-field"><strong>原始 Trap / 日志内容</strong>{{ row.trap_summary or event.message or '-' }}</div>
+                    <div class="event-detail-field"><strong>解析后的字段</strong>{{ event.alarm_obj or '-' }} / {{ event.alarm_id or '-' }} / {{ row.status_label }}</div>
+                    <div class="event-detail-field"><strong>事件来源</strong>{{ event.event_type or 'Trap' }}</div>
+                  </div>
+                </details>
+                {% if row.trap_detail_url %}
+                  <a class="button secondary" href="{{ row.trap_detail_url }}">查看原始日志</a>
+                {% endif %}
               </div>
-              <div class="event-detail-field">
-                <div class="label">恢复时间</div>
-                <div class="value">{{ row.restored_at or '-' }}</div>
-              </div>
-              <div class="event-detail-field">
-                <div class="label">事件状态 / 上报状态</div>
-                <div class="value">{{ row.active_state_label }} / {{ row.status_label }}</div>
-              </div>
-              <div class="event-detail-field">
-                <div class="label">确认备注</div>
-                <div class="value">{{ active_alarm.notes if active_alarm and active_alarm.notes else '-' }}</div>
-              </div>
-              <div class="event-detail-field" style="grid-column: 1 / -1;">
-                <div class="label">Trap 摘要</div>
-                <div class="value">{{ row.trap_summary or event.message or '-' }}</div>
-              </div>
-            </div>
-          </details>
-        </div>
-      </article>
-    {% else %}
-      <div class="soft-note" style="margin:16px;">暂无事件数据。</div>
-    {% endfor %}
-  </section>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="10">暂无事件数据。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
   <div class="pager-card">
     <div class="pager">
@@ -439,9 +199,7 @@
       <form method="get" class="pager-form">
         <input type="hidden" name="device_id" value="{{ filters.device_id }}">
         <input type="hidden" name="severity" value="{{ filters.severity }}">
-        <input type="hidden" name="ack_state" value="{{ filters.ack_state }}">
         <input type="hidden" name="open_state" value="{{ filters.open_state }}">
-        <input type="hidden" name="history_status" value="{{ filters.history_status }}">
         <input type="hidden" name="keyword" value="{{ filters.keyword }}">
         <input type="hidden" name="start_at" value="{{ filters.start_at }}">
         <input type="hidden" name="end_at" value="{{ filters.end_at }}">
@@ -461,4 +219,21 @@
       </form>
     </div>
   </div>
+
+  <script>
+    const alarmSource = window.getRepeaterEventSource ? window.getRepeaterEventSource() : new EventSource("{{ url_for('web.event_stream') }}");
+    let pendingAlarmReload = null;
+    function reloadAlarmPage() {
+      if (pendingAlarmReload) window.clearTimeout(pendingAlarmReload);
+      pendingAlarmReload = window.setTimeout(() => window.location.reload(), 500);
+    }
+    alarmSource.addEventListener("trap_event", (event) => {
+      try {
+        const payload = JSON.parse(event.data || "{}");
+        if (payload.trap_type === "alarm") reloadAlarmPage();
+      } catch (_error) {
+        reloadAlarmPage();
+      }
+    });
+  </script>
 {% endblock %}

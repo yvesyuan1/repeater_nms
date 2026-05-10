@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -7,6 +8,8 @@ from types import SimpleNamespace
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from repeater_nms.collector.program_analysis import ProgramAnalysisProcessor
+from repeater_nms.collector.realtime_status import RealtimeStatusProcessor
 from repeater_nms.collector.runtime import CollectorPipeline
 from repeater_nms.collector.schemas import PublishedTrapEvent
 from repeater_nms.db.init_db import initialize_database
@@ -26,6 +29,7 @@ from repeater_nms.db.models import (
 from repeater_nms.db.seed_data import DEFAULT_PROFILE_CODE
 from repeater_nms.db.session import reset_engine_cache, session_scope
 from repeater_nms.web import create_app
+from repeater_nms.web.routes import _effective_event_severity, _event_is_current_open
 from repeater_nms.web.utils import alarm_description_label, format_dt
 
 
@@ -62,6 +66,55 @@ class FakeSnmpClient:
     def set_oid_sync(self, host, port, community, oid, data_type, value):
         self.values[oid] = str(value)
         return {"ok": True, "oid": oid, "value_text": str(value)}
+
+
+class FakeRedis:
+    def __init__(self) -> None:
+        self.values: dict[str, object] = {}
+        self.lists: dict[str, list[str]] = {}
+        self.pipeline_commands: list[tuple[str, tuple]] = []
+
+    def setex(self, key: str, ttl: int, value: str) -> None:
+        self.values[key] = value
+
+    def expire(self, key: str, ttl: int) -> None:
+        return None
+
+    def get(self, key: str) -> str | None:
+        return self.values.get(key)
+
+    def hset(self, key: str, field: str, value: str) -> None:
+        self.values.setdefault(key, {})
+        self.values[key][field] = value
+
+    def hgetall(self, key: str) -> dict[str, str]:
+        value = self.values.get(key, {})
+        return value if isinstance(value, dict) else {}
+
+    def rpush(self, key: str, value: str) -> None:
+        self.lists.setdefault(key, []).append(value)
+
+    def ltrim(self, key: str, start: int, end: int) -> None:
+        rows = self.lists.get(key, [])
+        if start < 0:
+            start = max(len(rows) + start, 0)
+        if end < 0:
+            end = len(rows) + end
+        self.lists[key] = rows[start : end + 1]
+
+    def lrange(self, key: str, start: int, end: int) -> list[str]:
+        rows = self.lists.get(key, [])
+        if start < 0:
+            start = max(len(rows) + start, 0)
+        if end < 0:
+            end = len(rows) + end
+        return rows[start : end + 1]
+
+    def pipeline(self):
+        return self
+
+    def execute(self) -> None:
+        return None
 
 
 def _build_app(tmp_path: Path):
@@ -625,7 +678,7 @@ def test_alarm_page_supports_pagination(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert "上一页" in text
     assert '<span class="current">2</span>' in text
-    assert "查看 Trap" in text
+    assert "查看原始日志" in text
 
 
 def test_numeric_poll_judge_and_alarm_rule_override() -> None:
@@ -658,3 +711,322 @@ def test_numeric_poll_judge_and_alarm_rule_override() -> None:
     CollectorPipeline._apply_alarm_rule(event, rule)
     assert event.is_active_alarm is False
     assert event.should_popup is False
+
+
+def test_effective_event_severity_keeps_critical_for_cleared_close_events() -> None:
+    event = AlarmEvent(
+        alarm_id="LOS",
+        severity="cleared",
+        status="close",
+        event_type="trap",
+        occurred_at=datetime.now(timezone.utc),
+    )
+    active_alarm = ActiveAlarm(
+        alarm_id="LOS",
+        alarm_obj="xg.1.10",
+        dedupe_key="1::xg.1.10::LOS",
+        severity="critical",
+        status="close",
+        first_seen_at=datetime.now(timezone.utc),
+        last_seen_at=datetime.now(timezone.utc),
+        is_open=False,
+    )
+    rule = AlarmRule(
+        profile_code=DEFAULT_PROFILE_CODE,
+        alarm_id="LOS",
+        default_severity="critical",
+        should_create_active=True,
+        should_popup=True,
+        description="接口光信号丢失",
+    )
+
+    assert _effective_event_severity(event, active_alarm=active_alarm, rule=rule) == "critical"
+
+
+def test_recovery_event_is_not_treated_as_current_open_when_alarm_reopens() -> None:
+    event = AlarmEvent(
+        alarm_id="LOS",
+        severity="cleared",
+        status="close",
+        trap_event_id=100,
+        event_type="trap",
+        occurred_at=datetime.now(timezone.utc),
+    )
+    active_alarm = ActiveAlarm(
+        alarm_id="LOS",
+        alarm_obj="xg.1.10",
+        dedupe_key="1::xg.1.10::LOS",
+        severity="critical",
+        status="report",
+        first_seen_at=datetime.now(timezone.utc),
+        last_seen_at=datetime.now(timezone.utc),
+        last_trap_event_id=101,
+        is_open=True,
+    )
+
+    assert _event_is_current_open(event, active_alarm) is False
+
+
+def test_iop_low_alarm_auto_recovers_after_normal_check(tmp_path: Path) -> None:
+    app, database_url = _build_app(tmp_path)
+    engine = create_engine(database_url)
+    with Session(engine) as session:
+        active_alarm = session.scalar(select(ActiveAlarm))
+        assert active_alarm is not None
+        active_alarm.alarm_id = "IOP_15L"
+        active_alarm.dedupe_key = f"{active_alarm.device_id}::xg.1.10::IOP_15L"
+        active_alarm.first_seen_at = datetime.now(timezone.utc) - timedelta(minutes=11)
+        active_alarm.last_seen_at = active_alarm.first_seen_at
+        active_alarm.is_open = True
+        session.commit()
+
+    snmp_client = FakeSnmpClient()
+    snmp_client.values["1.3.6.1.4.1.42669.2.10.0"] = "normal"
+    pipeline = CollectorPipeline(database_url, "redis://127.0.0.1:6399/0", "test", snmp_client=snmp_client)
+    summary = pipeline.run_auto_recovery_checks()
+    assert summary["checked"] == 1
+    assert summary["recovered"] == 1
+
+    with Session(engine) as session:
+        active_alarm = session.scalar(select(ActiveAlarm).where(ActiveAlarm.alarm_id == "IOP_15L"))
+        assert active_alarm is not None
+        assert active_alarm.is_open is False
+        assert active_alarm.closed_at is not None
+        assert active_alarm.notes == "系统检查正常，自动恢复"
+        recovery_event = session.scalar(
+            select(AlarmEvent).where(
+                AlarmEvent.alarm_id == "IOP_15L",
+                AlarmEvent.event_type == "system_check",
+            )
+        )
+        assert recovery_event is not None
+        assert recovery_event.message == "系统检查正常，自动恢复"
+
+    client = app.test_client()
+    _login(client)
+    response = client.get("/alarms?keyword=IOP_15L")
+    assert response.status_code == 200
+    assert "系统检查正常，自动恢复" in response.get_data(as_text=True)
+
+
+def test_realtime_status_processor_writes_latest_and_sampled_history(tmp_path: Path) -> None:
+    _app, database_url = _build_app(tmp_path)
+    fake_redis = FakeRedis()
+    processor = RealtimeStatusProcessor(database_url, "redis://127.0.0.1:6399/0", redis_client=fake_redis)
+
+    payload = {
+        "ts": "2026-05-10T12:52:52.842",
+        "interfaces": [
+            {
+                "name": "ens7f0",
+                "bandwidth_mbps": 3541.3,
+                "bandwidth_str": "3.54 Gbps",
+                "packets_per_sec": 323111,
+                "programs": 401,
+            },
+            {
+                "name": "ens7f1",
+                "bandwidth_mbps": 3560.7,
+                "bandwidth_str": "3.56 Gbps",
+                "packets_per_sec": 324907,
+                "programs": 433,
+            },
+        ],
+    }
+
+    assert processor.process_payload(payload) is True
+
+    latest = json.loads(fake_redis.values["realtime:device:1:latest"])
+    assert latest["device_name"] == "RX10-WEB"
+    assert latest["interfaces"][0]["bandwidth_mbps"] == 3541.3
+    assert latest["raw_data"] == payload
+
+    history = [json.loads(item) for item in fake_redis.lists["realtime:device:1:history"]]
+    assert len(history) == 1
+    assert history[0]["ens7f0"]["programs"] == 401
+    assert history[0]["ens7f1"]["packets_per_sec"] == 324907
+
+
+def test_realtime_status_api_reads_redis_payload(tmp_path: Path, monkeypatch) -> None:
+    app, _database_url = _build_app(tmp_path)
+    fake_redis = FakeRedis()
+    latest = {
+        "device_id": 1,
+        "device_name": "RX10-WEB",
+        "device_ip": "172.31.3.239",
+        "ts": "2026-05-10T12:52:52.842",
+        "received_at": datetime.now(timezone.utc).isoformat(),
+        "interfaces": [
+            {
+                "name": "ens7f0",
+                "bandwidth_mbps": 3541.3,
+                "bandwidth_str": "3.54 Gbps",
+                "packets_per_sec": 323111,
+                "programs": 401,
+            }
+        ],
+        "raw_data": {"ts": "2026-05-10T12:52:52.842", "interfaces": []},
+    }
+    sample = {
+        "ts": "2026-05-10T12:52:52.842",
+        "ens7f0": {"bandwidth_mbps": 3541.3, "programs": 401, "packets_per_sec": 323111},
+        "ens7f1": {"bandwidth_mbps": 3560.7, "programs": 433, "packets_per_sec": 324907},
+    }
+    fake_redis.setex("realtime:device:1:latest", 30, json.dumps(latest))
+    fake_redis.rpush("realtime:device:1:history", json.dumps(sample))
+    monkeypatch.setattr(
+        "repeater_nms.web.routes.redis_client_from_app",
+        lambda app: SimpleNamespace(redis=fake_redis),
+    )
+
+    client = app.test_client()
+    _login(client)
+    response = client.get("/api/devices/1/realtime-status")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True
+    assert payload["data_status"] == "normal"
+    assert payload["interfaces"][0]["name"] == "ens7f0"
+    assert payload["history"][0]["ens7f1"]["programs"] == 433
+
+
+def _program_payload() -> dict:
+    return {
+        "batch": {"start": 300, "end": 349, "total": 401, "duration": 0.5, "device": "ens7f0"},
+        "programs": [
+            {
+                "no": 301,
+                "stream": "228.1.6.112:11000",
+                "total_bw": 6263195,
+                "status": "OK",
+                "l1": 0,
+                "l2": 0,
+                "l3": 0,
+                "video_bw": 4675113,
+                "video_codec": "H.264",
+                "audio_bw": 252945,
+                "audio_codec": "AAC",
+            },
+            {
+                "no": 302,
+                "stream": "228.1.6.113:11000",
+                "total_bw": 0,
+                "status": "NoPAT",
+                "l1": 1,
+                "l2": 0,
+                "l3": 2,
+                "video_bw": 0,
+                "video_codec": "",
+                "audio_bw": 0,
+                "audio_codec": "",
+            },
+        ],
+    }
+
+
+def test_program_analysis_processor_updates_program_hash(tmp_path: Path) -> None:
+    _app, database_url = _build_app(tmp_path)
+    fake_redis = FakeRedis()
+    processor = ProgramAnalysisProcessor(database_url, "redis://127.0.0.1:6399/0", redis_client=fake_redis)
+
+    assert processor.process_payload(_program_payload(), interface_name="ens7f0") is True
+
+    rows = fake_redis.hgetall("program:device:1:ens7f0:programs")
+    assert set(rows) == {"301", "302"}
+    program = json.loads(rows["301"])
+    assert program["multicast_address"] == "228.1.6.112"
+    assert program["udp_port"] == 11000
+    batch = json.loads(fake_redis.get("program:device:1:ens7f0:batch"))
+    assert batch["total"] == 401
+    assert batch["last_batch_start"] == 300
+
+
+def test_program_analysis_processor_accepts_trailing_commas(tmp_path: Path) -> None:
+    _app, database_url = _build_app(tmp_path)
+    fake_redis = FakeRedis()
+    processor = ProgramAnalysisProcessor(database_url, "redis://127.0.0.1:6399/0", redis_client=fake_redis)
+    raw = b"""
+    {
+      "batch": {
+        "start": 300,
+        "end": 300,
+        "total": 401,
+        "duration": 0.5,
+        "device": "ens7f0",
+      },
+      "programs": [
+        {
+          "no": 301,
+          "stream": "228.1.6.112:11000",
+          "total_bw": 6263195,
+          "status": "OK",
+          "l1": 0,
+          "l2": 0,
+          "l3": 0,
+        }
+      ]
+    }
+    """
+
+    assert processor.process_datagram(raw, interface_name="ens7f0") is True
+    assert "301" in fake_redis.hgetall("program:device:1:ens7f0:programs")
+
+
+def test_program_analysis_processor_accepts_missing_field_commas(tmp_path: Path) -> None:
+    _app, database_url = _build_app(tmp_path)
+    fake_redis = FakeRedis()
+    processor = ProgramAnalysisProcessor(database_url, "redis://127.0.0.1:6399/0", redis_client=fake_redis)
+    raw = b"""
+    {
+      "batch": {
+        "start": 300
+        "end": 300
+        "total": 401
+        "duration": 0.5
+        "device": "ens7f0",
+      },
+      "programs": [
+        {
+          "no": 301
+          "stream": "228.1.6.112:11000"
+          "total_bw": 6263195
+          "status": "OK"
+          "l1": 0
+          "l2": 0
+          "l3": 0
+          "video_bw": 4675113
+          "video_codec": "H.264"
+          "audio_bw": 252945
+          "audio_codec": "AAC"
+        }
+      ]
+    }
+    """
+
+    assert processor.process_datagram(raw, interface_name="ens7f0") is True
+    program = json.loads(fake_redis.hgetall("program:device:1:ens7f0:programs")["301"])
+    assert program["video_codec"] == "H.264"
+
+
+def test_program_analysis_api_returns_rows_with_formatted_time(tmp_path: Path, monkeypatch) -> None:
+    app, database_url = _build_app(tmp_path)
+    fake_redis = FakeRedis()
+    processor = ProgramAnalysisProcessor(database_url, "redis://127.0.0.1:6399/0", redis_client=fake_redis)
+    assert processor.process_payload(_program_payload(), interface_name="ens7f0") is True
+    monkeypatch.setattr(
+        "repeater_nms.web.routes.redis_client_from_app",
+        lambda app: SimpleNamespace(redis=fake_redis),
+    )
+
+    client = app.test_client()
+    _login(client)
+    response = client.get("/api/devices/1/program-analysis?page_size=10")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True
+    assert payload["summary"]["ens7f0"]["received_count"] == 2
+    assert payload["pagination"]["total"] == 2
+    assert payload["programs"][0]["last_update_time_display"]
+    assert "T" not in payload["programs"][0]["last_update_time_display"]

@@ -2,18 +2,10 @@
 
 {% block content %}
   <style>
-    .device-page {
-      display: grid;
-      grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
-      gap: 18px;
-      align-items: start;
-    }
-    .device-form-card {
-      position: sticky;
-      top: 24px;
-    }
+    .device-page { display: grid; gap: 12px; }
+    .device-form-card { background: var(--panel-alt); }
     .device-table {
-      min-width: 860px;
+      min-width: 980px;
     }
     .device-name {
       font-weight: 700;
@@ -25,12 +17,7 @@
       gap: 8px;
     }
     @media (max-width: 1080px) {
-      .device-page {
-        grid-template-columns: 1fr;
-      }
-      .device-form-card {
-        position: static;
-      }
+      .device-page { grid-template-columns: 1fr; }
     }
   </style>
 
@@ -38,7 +25,6 @@
     {% if current_user.role in ['admin', 'operator'] %}
       <section class="card device-form-card">
         <h3 style="margin-top:0;">新增设备</h3>
-        <div class="soft-note">录入基础地址、模板和 SNMP 参数后，设备即可进入 Trap 监听与详情页实时控制链路。</div>
         <form method="post" class="form-grid">
           <label><div class="muted">设备名称</div><input type="text" name="name" required></label>
           <label><div class="muted">管理 IP</div><input type="text" name="ip" required></label>
@@ -67,14 +53,14 @@
 
     <section class="card">
       <h3 style="margin-top:0;">设备列表</h3>
-      <div class="soft-note">设备名称和“进入详情”按钮都可直达设备详情页，详情页是状态查看、SNMP 控制和事件追踪的核心入口。</div>
       <div class="table-scroll">
         <table class="device-table">
           <thead>
             <tr>
-              <th>设备</th>
-              <th>模板</th>
-              <th>状态</th>
+              <th>设备名称</th>
+              <th>管理 IP</th>
+              <th>品牌 / 型号</th>
+              <th>启用状态</th>
               <th>最近通信</th>
               <th>最近结果</th>
               <th>操作</th>
@@ -85,9 +71,9 @@
               {% set profile = profile_map.get(item.device_profile_code) %}
               <tr>
                 <td>
-                  <div><a class="device-name" href="{{ url_for('web.device_detail', device_id=item.id) }}">{{ item.name }}</a></div>
-                  <div class="muted">{{ item.ip }}</div>
+                  <a class="device-name" href="{{ url_for('web.device_detail', device_id=item.id) }}">{{ item.name }}</a>
                 </td>
+                <td>{{ item.ip }}</td>
                 <td>{{ profile.vendor if profile else '-' }} {{ profile.model if profile else item.device_profile_code }}</td>
                 <td><span class="tag {{ 'ok' if item.is_enabled else 'error' }}">{{ '启用' if item.is_enabled else '停用' }}</span></td>
                 <td>{{ item.last_online_at|dt }}</td>
@@ -97,7 +83,7 @@
                 </td>
                 <td>
                   <div class="device-actions">
-                    <a class="button secondary" href="{{ url_for('web.device_detail', device_id=item.id) }}">进入详情</a>
+                    <a class="button secondary" href="{{ url_for('web.device_detail', device_id=item.id) }}">查看设备状态</a>
                     <a class="button secondary" href="{{ url_for('web.edit_device', device_id=item.id) }}">编辑</a>
                     {% if current_user.role in ['admin', 'operator'] %}
                       <form class="inline" method="post" action="{{ url_for('web.toggle_device', device_id=item.id) }}">
@@ -108,7 +94,7 @@
                 </td>
               </tr>
             {% else %}
-              <tr><td colspan="6">暂无设备。</td></tr>
+              <tr><td colspan="7">暂无设备。</td></tr>
             {% endfor %}
           </tbody>
         </table>

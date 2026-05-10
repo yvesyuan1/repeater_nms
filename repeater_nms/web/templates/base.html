@@ -7,370 +7,324 @@
     <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
     <style>
       :root {
-        --bg: #edf2f7;
-        --bg-soft: #f6f9fc;
+        --bg: #f3f5f7;
+        --chrome: #eef1f4;
+        --chrome-2: #f2f4f6;
         --panel: #ffffff;
-        --panel-alt: #f8fbfd;
-        --line: #d9e3ec;
-        --line-strong: #c4d2df;
-        --text: #14293c;
-        --muted: #647688;
-        --brand: #0f5c7a;
-        --brand-deep: #0b3348;
-        --brand-soft: #e6f0f5;
-        --brand-glow: rgba(15, 92, 122, 0.16);
-        --ok: #1f6f43;
-        --ok-soft: #e7f5ec;
-        --warn: #9a5a00;
-        --warn-soft: #fff3db;
-        --danger: #b42318;
-        --danger-soft: #fdeceb;
-        --info: #3867c8;
-        --info-soft: #e8eefc;
-        --shadow: 0 18px 44px rgba(16, 35, 53, 0.08);
-        --shadow-soft: 0 10px 26px rgba(16, 35, 53, 0.05);
+        --panel-alt: #f8f9fb;
+        --panel-soft: #f8f9fb;
+        --head: #eef1f4;
+        --line: #d7dde3;
+        --line-strong: #cfd6de;
+        --text: #26323d;
+        --muted: #66727d;
+        --brand: #1f6f9f;
+        --brand-2: #2d78a5;
+        --brand-soft: #e8f2f8;
+        --ok: #2e8b57;
+        --ok-soft: #edf7f1;
+        --warn: #c28a00;
+        --warn-soft: #fff8e6;
+        --danger: #c0392b;
+        --danger-soft: #fff0ee;
+        --info: #1f6f9f;
+        --info-soft: #edf5fa;
+        --unknown: #7f8c8d;
+        --unknown-soft: #f2f4f5;
       }
       * { box-sizing: border-box; }
       body {
         margin: 0;
         color: var(--text);
-        background:
-          radial-gradient(circle at top right, rgba(15, 92, 122, 0.06), transparent 26%),
-          linear-gradient(180deg, #f7fafd 0%, var(--bg) 100%);
-        font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
-        line-height: 1.55;
+        background: var(--bg);
+        font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+        font-size: 13px;
+        line-height: 1.45;
       }
-      a {
-        color: inherit;
-        text-decoration: none;
-      }
+      a { color: inherit; text-decoration: none; }
       .layout {
         display: grid;
-        grid-template-columns: 276px minmax(0, 1fr);
+        grid-template-columns: 220px minmax(0, 1fr);
         min-height: 100vh;
       }
       .sidebar {
         position: sticky;
         top: 0;
         min-height: 100vh;
-        padding: 24px 18px 18px;
-        background: linear-gradient(180deg, #18374a 0%, #122b3b 100%);
-        color: #edf4f9;
+        background: var(--chrome);
+        border-right: 1px solid var(--line-strong);
+        color: #34414d;
       }
       .brand {
-        margin-bottom: 22px;
-        padding: 2px 4px 18px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      }
-      .brand-top {
+        height: 49px;
         display: flex;
         align-items: center;
-        gap: 14px;
+        padding: 0 14px;
+        border-bottom: 1px solid var(--line-strong);
+        background: #f7f8fa;
       }
+      .brand-top { display: flex; align-items: center; gap: 9px; }
       .brand-mark {
-        width: 52px;
-        height: 52px;
-        flex: 0 0 52px;
-        border-radius: 15px;
-        overflow: hidden;
-        border: 1px solid rgba(255, 255, 255, 0.14);
-        box-shadow: 0 10px 24px rgba(4, 19, 29, 0.22);
+        width: 26px;
+        height: 26px;
+        flex: 0 0 26px;
+        border: 1px solid var(--line-strong);
+        background: #fff;
       }
-      .brand-mark img {
-        display: block;
-        width: 100%;
-        height: 100%;
-      }
+      .brand-mark img { display: block; width: 100%; height: 100%; }
       .brand h1 {
         margin: 0;
-        font-size: 21px;
-        line-height: 1.25;
-        letter-spacing: 0.01em;
+        font-size: 15px;
+        line-height: 1.2;
+        font-weight: 700;
+        color: #1f2d38;
       }
-      .brand-org {
-        margin-top: 10px;
-        color: rgba(237, 244, 249, 0.78);
-        font-size: 13px;
-        line-height: 1.6;
-      }
-      .nav {
-        display: grid;
-        gap: 18px;
-      }
+      .brand-org, .sidebar-meta { display: none; }
+      .nav { padding: 10px 0; }
+      .nav-group { margin-bottom: 8px; }
       .nav-group-label {
-        margin: 0 0 10px;
-        padding: 0 10px;
-        color: rgba(237, 244, 249, 0.56);
+        margin: 0;
+        padding: 8px 14px 6px;
+        color: #5f6d78;
         font-size: 12px;
-        letter-spacing: 0.08em;
+        font-weight: 700;
       }
-      .nav-links {
-        display: grid;
-        gap: 6px;
-      }
+      .nav-links { display: grid; }
       .nav a {
         position: relative;
         display: flex;
         align-items: center;
-        min-height: 44px;
-        padding: 10px 12px 10px 16px;
-        border-radius: 12px;
-        color: rgba(237, 244, 249, 0.92);
-        border: 1px solid transparent;
-        transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
-        font-size: 15px;
-        font-weight: 600;
+        min-height: 34px;
+        padding: 7px 12px 7px 24px;
+        border-top: 1px solid transparent;
+        border-bottom: 1px solid transparent;
+        color: #33424f;
+        font-size: 13px;
       }
       .nav a::before {
         content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
         width: 3px;
-        height: 18px;
-        margin-right: 12px;
-        border-radius: 999px;
         background: transparent;
-        transition: background 0.18s ease;
-      }
-      .nav a.sub {
-        min-height: 40px;
-        margin-left: 14px;
-        padding-left: 14px;
-        font-size: 14px;
-        font-weight: 500;
-        color: rgba(237, 244, 249, 0.8);
       }
       .nav a:hover {
-        background: rgba(255, 255, 255, 0.08);
-        border-color: rgba(255, 255, 255, 0.08);
+        background: #f8fbfd;
+        border-color: #e4e9ee;
       }
       .nav a.active {
-        background: rgba(255, 255, 255, 0.12);
-        border-color: rgba(255, 255, 255, 0.1);
-        color: #fff;
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+        background: #e6f0f7;
+        border-color: #c7dbe8;
+        color: #143c57;
+        font-weight: 700;
       }
-      .nav a.active::before {
-        background: #7ad0ea;
-      }
-      .sidebar-meta {
-        margin-top: 22px;
-        padding: 18px 10px 0;
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
-        color: rgba(237, 244, 249, 0.52);
-        font-size: 12px;
-        line-height: 1.8;
-      }
+      .nav a.active::before { background: var(--brand); }
       .content {
         min-width: 0;
-        padding: 24px;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
       }
       .topbar {
+        height: 49px;
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
+        align-items: center;
         gap: 16px;
-        margin-bottom: 18px;
+        padding: 0 18px;
+        background: #fafbfc;
+        border-bottom: 1px solid var(--line-strong);
       }
       .topbar h2 {
         margin: 0;
-        font-size: 30px;
+        font-size: 16px;
         line-height: 1.2;
+        color: #1f2d38;
       }
-      .topbar p {
-        margin: 8px 0 0;
-        color: var(--muted);
-        font-size: 14px;
-      }
+      .topbar p { display: none; }
       .topbar-side {
         display: flex;
         align-items: center;
         gap: 12px;
-        color: var(--muted);
-        font-size: 14px;
-      }
-      .main-panel {
-        background: rgba(255, 255, 255, 0.9);
-        border: 1px solid var(--line);
-        border-radius: 20px;
-        box-shadow: var(--shadow);
-        padding: 20px;
-      }
-      .grid { display: grid; gap: 16px; }
-      .grid.cards { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-      .card {
-        padding: 18px;
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        background: var(--panel);
-        box-shadow: var(--shadow-soft);
-      }
-      .card .label {
-        color: var(--muted);
+        color: #394854;
         font-size: 13px;
       }
-      .card .value {
-        margin-top: 8px;
-        font-size: 28px;
-        font-weight: 700;
-        line-height: 1.2;
+      .main-panel {
+        margin: 12px;
+        padding: 12px;
+        min-width: 0;
+        background: var(--panel);
+        border: 1px solid var(--line-strong);
       }
+      .grid { display: grid; gap: 10px; }
+      .grid.cards { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+      .card,
+      .section-panel,
+      .filter-panel,
+      .trap-filter-card,
+      .pager-card {
+        border: 1px solid var(--line-strong);
+        background: var(--panel);
+        border-radius: 2px;
+        box-shadow: none;
+      }
+      .card { padding: 12px; }
+      .card .label { color: var(--muted); font-size: 12px; }
+      .card .value { margin-top: 5px; font-size: 18px; font-weight: 700; line-height: 1.2; }
       .toolbar, .filters {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 10px;
-        margin-bottom: 16px;
+        gap: 8px;
+        margin-bottom: 10px;
       }
       form.inline { display: inline; }
       input, select, textarea, button { font: inherit; }
       input:not([type="checkbox"]):not([type="radio"]), select, textarea {
         width: 100%;
-        min-height: 40px;
-        padding: 9px 12px;
-        border: 1px solid var(--line);
-        border-radius: 10px;
+        min-height: 30px;
+        padding: 4px 8px;
+        border: 1px solid var(--line-strong);
+        border-radius: 2px;
         background: #fff;
         color: var(--text);
+        font-size: 13px;
       }
       input:not([type="checkbox"]):not([type="radio"]):focus,
       select:focus,
       textarea:focus {
         outline: none;
-        border-color: #75a9c3;
-        box-shadow: 0 0 0 3px rgba(15, 92, 122, 0.1);
+        border-color: var(--brand-2);
+        box-shadow: 0 0 0 1px rgba(31, 111, 159, 0.14);
       }
-      textarea {
-        min-height: 92px;
-        resize: vertical;
-      }
+      textarea { min-height: 74px; resize: vertical; }
       button, .button {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-height: 40px;
-        padding: 9px 14px;
-        border: 0;
-        border-radius: 10px;
+        min-height: 30px;
+        padding: 5px 12px;
+        border: 1px solid #195c84;
+        border-radius: 2px;
         cursor: pointer;
         background: var(--brand);
         color: #fff;
-        font-weight: 600;
-        transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+        font-size: 13px;
+        font-weight: 400;
+        line-height: 1.2;
       }
-      button:hover, .button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 8px 18px rgba(15, 92, 122, 0.16);
-      }
+      button:hover, .button:hover { background: #195f88; }
       button.secondary, .button.secondary {
-        background: #edf3f7;
-        color: var(--text);
+        background: #f5f6f8;
+        border-color: #bfc8d1;
+        color: #2f3c47;
       }
-      button.danger { background: var(--danger); }
+      button.secondary:hover, .button.secondary:hover { background: #e8edf2; }
+      button.danger, .button.danger {
+        background: var(--danger);
+        border-color: #a53025;
+        color: #fff;
+      }
       .form-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 14px;
-      }
-      .form-grid .full { grid-column: 1 / -1; }
-      .checkbox-field,
-      .bool-field {
-        display: inline-flex;
-        align-items: center;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
         gap: 10px;
       }
+      .form-grid .full { grid-column: 1 / -1; }
+      .checkbox-field, .bool-field { display: inline-flex; align-items: center; gap: 7px; }
       table {
         width: 100%;
         border-collapse: collapse;
+        border: 1px solid var(--line-strong);
       }
       th, td {
-        padding: 12px 12px;
-        border-bottom: 1px solid var(--line);
+        padding: 7px 9px;
+        border: 1px solid var(--line);
         text-align: left;
-        vertical-align: top;
-        font-size: 14px;
+        vertical-align: middle;
+        font-size: 13px;
       }
       th {
-        color: var(--muted);
-        font-weight: 600;
+        background: var(--head);
+        color: #32414d;
+        font-weight: 700;
         white-space: nowrap;
       }
-      .table-scroll {
-        width: 100%;
-        overflow-x: auto;
-      }
+      tbody tr:hover { background: #f6fafd; }
+      .table-scroll { width: 100%; overflow-x: auto; }
       .tag {
         display: inline-block;
-        padding: 4px 9px;
-        border-radius: 999px;
-        background: #eef3f7;
-        color: var(--text);
+        min-width: 42px;
+        padding: 1px 6px;
+        border-radius: 2px;
+        border: 1px solid #cbd5dd;
+        background: var(--unknown-soft);
+        color: var(--unknown);
         font-size: 12px;
-        font-weight: 700;
+        line-height: 1.5;
+        text-align: center;
+        white-space: nowrap;
       }
-      .tag.critical { background: var(--danger-soft); color: #ab2318; }
-      .tag.major { background: #fff1e6; color: #a74c0d; }
-      .tag.minor, .tag.warning { background: var(--warn-soft); color: var(--warn); }
-      .tag.ok, .tag.normal, .tag.report, .tag.change, .tag.acknowledged { background: var(--ok-soft); color: var(--ok); }
-      .tag.close, .tag.cleared, .tag.unknown { background: #eef2f6; color: #5f6f80; }
-      .tag.error, .tag.poll_error { background: var(--danger-soft); color: var(--danger); }
-      .tag.partial { background: #fdf1df; color: #9f6107; }
-      .tag.info { background: var(--info-soft); color: var(--info); }
-      .flash-stack {
-        display: grid;
-        gap: 10px;
-        margin-bottom: 16px;
+      .tag.critical, .tag.major, .tag.error, .tag.poll_error {
+        border-color: #efc3bd;
+        background: var(--danger-soft);
+        color: var(--danger);
       }
+      .tag.minor, .tag.warning, .tag.pending {
+        border-color: #eedca8;
+        background: var(--warn-soft);
+        color: var(--warn);
+      }
+      .tag.ok, .tag.normal, .tag.report, .tag.change, .tag.acknowledged, .tag.success {
+        border-color: #b9dcc6;
+        background: var(--ok-soft);
+        color: var(--ok);
+      }
+      .tag.close, .tag.cleared, .tag.unknown {
+        border-color: #d5dade;
+        background: var(--unknown-soft);
+        color: var(--unknown);
+      }
+      .tag.partial, .tag.info {
+        border-color: #bbd5e5;
+        background: var(--info-soft);
+        color: var(--info);
+      }
+      .flash-stack { display: grid; gap: 8px; margin: 12px 12px 0; }
       .flash {
-        padding: 12px 14px;
-        border-radius: 12px;
+        padding: 8px 10px;
+        border-radius: 2px;
         border: 1px solid var(--line);
         background: #fff;
       }
-      .flash.error {
-        border-color: #f5cfc9;
-        background: #fff5f4;
-        color: var(--danger);
-      }
-      .flash.success {
-        border-color: #c4e2ce;
-        background: #eefaf2;
-        color: var(--ok);
-      }
-      .muted {
-        color: var(--muted);
-        font-size: 13px;
-      }
+      .flash.error { border-color: #efc3bd; background: #fff6f5; color: var(--danger); }
+      .flash.success { border-color: #b9dcc6; background: #f2faf5; color: var(--ok); }
+      .muted { color: var(--muted); font-size: 12px; }
       .soft-note {
-        margin-bottom: 16px;
-        padding: 12px 14px;
+        margin-bottom: 10px;
+        padding: 8px 10px;
         border: 1px solid var(--line);
-        border-radius: 12px;
+        border-radius: 2px;
         background: var(--panel-alt);
         color: var(--muted);
       }
-      .ellipsis {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
+      .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .pager {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         justify-content: space-between;
-        gap: 10px;
-        margin-top: 16px;
-      }
-      .pager .page-links {
-        display: flex;
-        flex-wrap: wrap;
         gap: 8px;
+        margin-top: 10px;
       }
+      .pager .page-links { display: flex; flex-wrap: wrap; gap: 4px; }
       .pager .page-links a,
       .pager .page-links span {
-        min-width: 36px;
-        padding: 8px 12px;
-        border-radius: 10px;
-        border: 1px solid var(--line);
+        min-width: 30px;
+        padding: 5px 9px;
+        border-radius: 2px;
+        border: 1px solid var(--line-strong);
         background: #fff;
         text-align: center;
         color: var(--text);
@@ -382,26 +336,26 @@
       }
       .popup-tray {
         position: fixed;
-        right: 18px;
-        bottom: 18px;
-        width: min(360px, calc(100vw - 36px));
+        right: 14px;
+        bottom: 14px;
+        width: min(420px, calc(100vw - 28px));
         display: grid;
-        gap: 10px;
+        gap: 8px;
         z-index: 50;
       }
       .popup-item {
-        padding: 14px;
-        border-radius: 14px;
-        background: #fffaf8;
-        border: 1px solid #f0d4c6;
-        box-shadow: var(--shadow);
+        padding: 10px 12px;
+        border-radius: 2px;
+        background: #fff;
+        border: 1px solid #efb2a7;
+        border-left: 4px solid var(--danger);
       }
-      .popup-item h4 {
-        margin: 0 0 6px;
-        font-size: 15px;
-      }
+      .popup-item h4 { margin: 0 0 5px; font-size: 14px; line-height: 1.4; }
+      .popup-item .popup-meta,
+      .popup-item .popup-summary { color: var(--muted); font-size: 12px; line-height: 1.6; }
+      .popup-item.popup-warning { border-left-color: var(--warn); border-color: #ecd39d; }
       .footer {
-        margin-top: 16px;
+        padding: 0 12px 12px;
         color: var(--muted);
         font-size: 12px;
         text-align: right;
@@ -414,93 +368,38 @@
       }
       .auth-card {
         width: min(420px, 100%);
-        padding: 28px;
-        border-radius: 18px;
-        border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.96);
-        box-shadow: var(--shadow);
+        padding: 22px;
+        border-radius: 2px;
+        border: 1px solid var(--line-strong);
+        background: #fff;
       }
-      .auth-card-head {
-        margin-bottom: 20px;
-      }
-      .auth-brand {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        margin-bottom: 16px;
-      }
-      .auth-brand img {
-        width: 56px;
-        height: 56px;
-        border-radius: 16px;
-        box-shadow: 0 10px 24px rgba(15, 64, 85, 0.12);
-      }
-      .auth-eyebrow {
-        display: inline-flex;
-        padding: 5px 10px;
-        border-radius: 999px;
-        background: var(--brand-soft);
-        color: var(--brand);
-        font-size: 12px;
-        font-weight: 700;
-      }
-      .auth-card-head h2 {
-        margin: 10px 0 8px;
-        font-size: 30px;
-      }
-      .auth-form {
-        display: grid;
-        gap: 16px;
-      }
-      .captcha-row {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 138px;
-        gap: 12px;
-        align-items: end;
-      }
+      .auth-card-head { margin-bottom: 16px; }
+      .auth-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+      .auth-brand img { width: 42px; height: 42px; border: 1px solid var(--line); }
+      .auth-eyebrow { color: var(--brand); font-size: 12px; font-weight: 700; }
+      .auth-card-head h2 { margin: 8px 0; font-size: 22px; }
+      .auth-form { display: grid; gap: 12px; }
+      .captcha-row { display: grid; grid-template-columns: minmax(0, 1fr) 130px; gap: 10px; align-items: end; }
       .captcha-image {
         width: 100%;
-        height: 48px;
+        height: 44px;
         border: 1px solid var(--line);
-        border-radius: 10px;
+        border-radius: 2px;
         background: #f8fbfd;
         object-fit: cover;
         cursor: pointer;
       }
-      .auth-footer {
-        margin-top: 16px;
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.7;
-      }
+      .auth-footer { margin-top: 14px; color: var(--muted); font-size: 12px; line-height: 1.7; }
       @media (max-width: 1120px) {
-        .layout {
-          grid-template-columns: 1fr;
-        }
-        .sidebar {
-          position: static;
-          min-height: auto;
-        }
-      }
-      @media (max-width: 980px) {
-        .content {
-          padding: 18px 14px;
-        }
-        .topbar {
-          flex-direction: column;
-        }
+        .layout { grid-template-columns: 1fr; }
+        .sidebar { position: static; min-height: auto; }
+        .nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
       @media (max-width: 720px) {
-        .content {
-          padding: 14px 10px;
-        }
-        .main-panel,
-        .auth-card {
-          padding: 16px;
-        }
-        .captcha-row {
-          grid-template-columns: 1fr;
-        }
+        .nav { grid-template-columns: 1fr; }
+        .topbar { height: auto; align-items: flex-start; padding: 10px 12px; flex-direction: column; }
+        .main-panel { margin: 8px; padding: 8px; }
+        .captcha-row { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -518,36 +417,23 @@
                 <h1>中继器网管</h1>
               </div>
             </div>
-            <div class="brand-org">江苏有线南京分公司 × 数网科技</div>
           </div>
 
           <nav class="nav">
             <div class="nav-group">
-              <div class="nav-group-label">监控总览</div>
+              <div class="nav-group-label">运行监控</div>
               <div class="nav-links">
-                <a class="{{ 'active' if endpoint == 'web.dashboard' else '' }}" href="{{ url_for('web.dashboard') }}">总览</a>
-              </div>
-            </div>
-
-            <div class="nav-group">
-              <div class="nav-group-label">设备管理</div>
-              <div class="nav-links">
-                <a class="{{ 'active' if endpoint in ['web.devices', 'web.device_detail', 'web.edit_device'] else '' }}" href="{{ url_for('web.devices') }}">设备列表</a>
-                <a class="{{ 'active' if endpoint == 'web.mib_nodes' else '' }}" href="{{ url_for('web.mib_nodes') }}">设备模板</a>
-              </div>
-            </div>
-
-            <div class="nav-group">
-              <div class="nav-group-label">事件与日志</div>
-              <div class="nav-links">
+                <a class="{{ 'active' if endpoint == 'web.dashboard' else '' }}" href="{{ url_for('web.dashboard') }}">系统概览</a>
+                <a class="{{ 'active' if endpoint in ['web.devices', 'web.device_detail', 'web.edit_device'] else '' }}" href="{{ url_for('web.devices') }}">设备管理</a>
                 <a class="{{ 'active' if endpoint in ['web.alarms', 'web.ack_alarm'] else '' }}" href="{{ url_for('web.alarms') }}">事件中心</a>
-                <a class="{{ 'active' if endpoint in ['web.traps', 'web.trap_detail'] else '' }}" href="{{ url_for('web.traps') }}">Trap 日志</a>
+                <a class="{{ 'active' if endpoint in ['web.traps', 'web.trap_detail'] else '' }}" href="{{ url_for('web.traps') }}">设备日志</a>
               </div>
             </div>
 
             <div class="nav-group">
               <div class="nav-group-label">系统管理</div>
               <div class="nav-links">
+                <a class="{{ 'active' if endpoint == 'web.mib_nodes' else '' }}" href="{{ url_for('web.mib_nodes') }}">设备模板</a>
                 {% if current_user.role == 'admin' %}
                   <a class="{{ 'active' if endpoint == 'web.users' else '' }}" href="{{ url_for('web.users') }}">用户管理</a>
                 {% endif %}
@@ -555,11 +441,6 @@
               </div>
             </div>
           </nav>
-
-          <div class="sidebar-meta">
-            <div>版本：repeater-nms</div>
-            <div>版权：江苏有线南京分公司 / 数网科技</div>
-          </div>
         </aside>
 
         <section class="content">
@@ -591,7 +472,7 @@
           <div class="main-panel">
             {% block content %}{% endblock %}
           </div>
-          <div class="footer">中继器网管 · 江苏有线南京分公司 × 数网科技</div>
+          <div class="footer">江苏有线南京分公司 × 数网科技</div>
         </section>
       </div>
 
@@ -612,7 +493,16 @@
             hourCycle: "h23"
           }).format(date).replace(/\//g, "-");
         };
+        window.getRepeaterEventSource = function () {
+          if (!window.__repeaterEventSource) {
+            window.__repeaterEventSource = new EventSource("{{ url_for('web.event_stream') }}");
+          }
+          return window.__repeaterEventSource;
+        };
+        let popupFetchInFlight = false;
         async function fetchPopups() {
+          if (popupFetchInFlight) return;
+          popupFetchInFlight = true;
           try {
             const response = await fetch("{{ url_for('web.api_popup_notifications') }}", { credentials: "same-origin" });
             if (!response.ok) return;
@@ -622,12 +512,16 @@
             items.slice(0, 4).forEach((item) => {
               const createdAt = item.created_at_display || window.formatBeijingTime(item.created_at);
               const node = document.createElement("div");
-              node.className = "popup-item";
+              node.className = `popup-item popup-${item.severity || "info"}`;
               node.innerHTML = `
                 <h4>${item.severity_label || "事件"} / ${item.alarm_id || "-"}</h4>
-                <div class="muted">${item.device_name || "未知设备"} | ${item.alarm_obj || "-"}</div>
-                <div class="muted" style="margin-top:4px;">${createdAt}</div>
-                <div style="margin-top:10px;"><button data-popup-id="${item.id}">确认</button></div>
+                <div class="popup-meta">${item.device_name || "未知设备"} | ${item.alarm_obj || "-"}</div>
+                <div class="popup-meta">${createdAt}</div>
+                <div class="popup-summary">收到新的设备事件，请进入事件中心查看。</div>
+                <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+                  <button class="secondary" data-popup-id="${item.id}">关闭提示</button>
+                  <a class="button secondary" href="/alarms?keyword=${encodeURIComponent(item.alarm_id || "")}">查看事件</a>
+                </div>
               `;
               tray.appendChild(node);
             });
@@ -642,10 +536,11 @@
             });
           } catch (error) {
             console.debug("popup fetch failed", error);
+          } finally {
+            popupFetchInFlight = false;
           }
         }
         fetchPopups();
-        setInterval(fetchPopups, 10000);
       </script>
     {% else %}
       <main class="auth-shell">

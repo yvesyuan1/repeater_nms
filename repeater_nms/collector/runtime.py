@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -32,6 +32,11 @@ from repeater_nms.db.session import session_scope
 
 
 LOGGER = logging.getLogger("repeater_nms.collector.runtime")
+
+AUTO_RECOVERY_ALARM_IDS = {"IOP_15L", "IOP_24L"}
+AUTO_RECOVERY_DELAY = timedelta(minutes=10)
+AUTO_RECOVERY_CHECK_OID = "1.3.6.1.4.1.42669.2.10.0"
+AUTO_RECOVERY_MESSAGE = "系统检查正常，自动恢复"
 
 PUBLISHED_SEVERITY_LABELS = {
     "critical": "严重",
@@ -483,6 +488,86 @@ class CollectorPipeline:
             result_counts["results"] += len(results)
 
         return dict(result_counts)
+
+    def run_auto_recovery_checks(self, *, now: datetime | None = None) -> dict[str, int]:
+        check_at = now or datetime.now(timezone.utc)
+        if check_at.tzinfo is None:
+            check_at = check_at.replace(tzinfo=timezone.utc)
+        cutoff = check_at - AUTO_RECOVERY_DELAY
+        checked = 0
+        recovered = 0
+        skipped = 0
+        errored = 0
+
+        with session_scope(self.database_url) as session:
+            rows = session.execute(
+                select(ActiveAlarm, Device)
+                .join(Device, ActiveAlarm.device_id == Device.id)
+                .where(
+                    ActiveAlarm.is_open.is_(True),
+                    ActiveAlarm.alarm_id.in_(AUTO_RECOVERY_ALARM_IDS),
+                    ActiveAlarm.first_seen_at <= cutoff,
+                    Device.is_enabled.is_(True),
+                )
+            ).all()
+
+            for active_alarm, device in rows:
+                checked += 1
+                result = self.snmp_client.get_oid_sync(
+                    device.ip,
+                    device.snmp_port,
+                    device.read_community,
+                    AUTO_RECOVERY_CHECK_OID,
+                )
+                if not result.get("ok"):
+                    errored += 1
+                    LOGGER.warning(
+                        "auto recovery check failed device=%s alarm_id=%s oid=%s error=%s",
+                        device.name,
+                        active_alarm.alarm_id,
+                        AUTO_RECOVERY_CHECK_OID,
+                        result.get("error"),
+                    )
+                    continue
+
+                value = str(result.get("value_text") or result.get("value_raw") or "").strip().lower()
+                if value != "normal":
+                    skipped += 1
+                    continue
+
+                active_alarm.is_open = False
+                active_alarm.status = "close"
+                active_alarm.severity = "cleared"
+                active_alarm.last_seen_at = check_at
+                active_alarm.closed_at = check_at
+                active_alarm.notes = AUTO_RECOVERY_MESSAGE
+                session.add(
+                    AlarmEvent(
+                        active_alarm_id=active_alarm.id,
+                        trap_event_id=None,
+                        device_id=active_alarm.device_id,
+                        alarm_obj=active_alarm.alarm_obj,
+                        alarm_id=active_alarm.alarm_id,
+                        severity_code=0,
+                        severity="cleared",
+                        status_code=None,
+                        status="close",
+                        event_type="system_check",
+                        message=AUTO_RECOVERY_MESSAGE,
+                        occurred_at=check_at,
+                    )
+                )
+                recovered += 1
+                LOGGER.info(
+                    "auto recovered alarm device=%s alarm_id=%s alarm_obj=%s oid=%s value=%s",
+                    device.name,
+                    active_alarm.alarm_id,
+                    active_alarm.alarm_obj,
+                    AUTO_RECOVERY_CHECK_OID,
+                    value,
+                )
+
+        return {"checked": checked, "recovered": recovered, "skipped": skipped, "errored": errored}
 
     @staticmethod
     def _active_alarm_key(device_id: int | None, alarm_obj: str | None, alarm_id: str | None) -> str:

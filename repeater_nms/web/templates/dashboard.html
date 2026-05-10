@@ -2,410 +2,138 @@
 
 {% block content %}
   <style>
-    .overview-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 18px;
-      margin-bottom: 18px;
-    }
-    .overview-headline {
+    .summary-strip {
       display: grid;
-      gap: 10px;
-    }
-    .overview-clock {
-      min-width: 248px;
-      padding: 16px 18px;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: linear-gradient(180deg, #f8fbfd 0%, #f1f6fa 100%);
-      box-shadow: var(--shadow-soft);
-    }
-    .overview-clock .label {
-      color: var(--muted);
-      font-size: 12px;
-    }
-    .overview-clock .date {
-      margin-top: 6px;
-      font-size: 14px;
-      color: var(--muted);
-    }
-    .overview-clock .time {
-      margin-top: 2px;
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-    }
-    .situation-banner {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 10px;
-      padding: 12px 14px;
-      border-radius: 14px;
-      background: var(--panel-alt);
-      border: 1px solid var(--line);
-      color: var(--text);
-    }
-    .situation-banner strong {
-      color: var(--danger);
-    }
-    .situation-banner.normal strong {
-      color: var(--ok);
-    }
-    .status-strip {
-      display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-    .status-card {
-      padding: 14px 16px;
-      border-radius: 16px;
-      border: 1px solid var(--line);
-      background: #fff;
-      box-shadow: var(--shadow-soft);
-    }
-    .status-card.emphasis {
-      border-color: #f3d0cb;
-      background: linear-gradient(180deg, #fff7f6 0%, #fff 100%);
-    }
-    .status-card.warning {
-      border-color: #f3e0b6;
-      background: linear-gradient(180deg, #fffaf0 0%, #fff 100%);
-    }
-    .status-card .label {
-      color: var(--muted);
-      font-size: 12px;
-    }
-    .status-card .value {
-      margin-top: 8px;
-      font-size: 30px;
-      font-weight: 700;
-      line-height: 1.1;
-    }
-    .status-card .note {
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-    .overview-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.3fr) minmax(360px, 1fr);
-      gap: 18px;
-    }
-    .section-panel {
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: #fff;
-      box-shadow: var(--shadow-soft);
-      overflow: hidden;
-    }
-    .section-panel-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      padding: 18px 18px 14px;
-      border-bottom: 1px solid var(--line);
-    }
-    .section-panel-header h3 {
-      margin: 0;
-      font-size: 20px;
-    }
-    .section-panel-body {
-      padding: 10px 18px 18px;
-    }
-    .device-list {
-      display: grid;
-      gap: 10px;
-    }
-    .device-row {
-      display: grid;
-      grid-template-columns: 4px minmax(0, 1.1fr) repeat(4, minmax(92px, 0.6fr)) auto;
-      gap: 12px;
-      align-items: center;
-      padding: 12px 14px 12px 0;
-      border-bottom: 1px solid var(--line);
-    }
-    .device-row:last-child {
+      grid-template-columns: repeat(6, minmax(120px, 1fr));
+      border: 1px solid var(--line-strong);
       border-bottom: 0;
+      margin-bottom: 12px;
+      background: #fff;
     }
-    .device-bar {
-      align-self: stretch;
-      border-radius: 999px;
-      background: #d7e2eb;
+    .summary-item {
+      min-height: 58px;
+      padding: 8px 10px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line-strong);
     }
-    .device-bar.critical,
-    .device-bar.major,
-    .device-bar.poll_error { background: #d64437; }
-    .device-bar.warning { background: #e5a22f; }
-    .device-bar.normal { background: #2a9256; }
-    .device-name {
-      font-weight: 700;
-      font-size: 16px;
+    .summary-item:last-child { border-right: 0; }
+    .summary-label {
+      color: var(--muted);
+      font-size: 12px;
       line-height: 1.4;
     }
-    .device-sub {
+    .summary-value {
       margin-top: 4px;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.6;
-    }
-    .device-metric .label {
-      color: var(--muted);
-      font-size: 12px;
-    }
-    .device-metric .value {
-      margin-top: 4px;
-      font-size: 14px;
+      font-size: 22px;
+      line-height: 1.1;
       font-weight: 700;
-      line-height: 1.45;
+      color: #1f2d38;
     }
-    .event-tools {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-    }
-    .event-list {
-      display: grid;
-      gap: 10px;
-    }
-    .event-card {
-      padding: 14px 15px;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: var(--panel-alt);
-    }
-    .event-card.emphasis {
-      border-color: #f1d6cf;
-      background: #fff9f8;
-    }
-    .event-head {
+    .summary-value.ok { color: var(--ok); }
+    .summary-value.warn { color: var(--warn); }
+    .summary-value.danger { color: var(--danger); }
+    .section-title {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: center;
       gap: 10px;
+      min-height: 34px;
+      padding: 0 2px;
       margin-bottom: 8px;
     }
-    .event-title {
-      font-size: 16px;
-      font-weight: 700;
-      line-height: 1.5;
+    .section-title h3 {
+      margin: 0;
+      font-size: 14px;
+      color: #1f2d38;
     }
-    .event-tags {
+    .overview-table { min-width: 1120px; }
+    .overview-table .name { font-weight: 700; }
+    .operation-cell {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
-      justify-content: flex-end;
     }
-    .event-meta,
-    .event-note {
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.65;
-    }
-    .event-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 10px;
-    }
-    @media (max-width: 1240px) {
-      .status-strip {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-      }
-      .overview-grid {
-        grid-template-columns: 1fr;
-      }
-      .device-row {
-        grid-template-columns: 4px minmax(0, 1fr) repeat(2, minmax(0, 1fr));
-        align-items: start;
-      }
-    }
-    @media (max-width: 900px) {
-      .overview-head {
-        flex-direction: column;
-      }
-      .overview-clock {
-        width: 100%;
-      }
-    }
-    @media (max-width: 720px) {
-      .status-strip {
-        grid-template-columns: 1fr 1fr;
-      }
-      .device-row {
-        grid-template-columns: 4px 1fr;
-      }
-      .device-metric,
-      .device-actions {
-        grid-column: 2;
-      }
-      .event-head {
-        flex-direction: column;
-      }
-      .event-tags {
-        justify-content: flex-start;
-      }
+    @media (max-width: 980px) {
+      .summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
   </style>
 
-  <section class="overview-head">
-    <div class="overview-headline">
-      <div class="situation-banner {{ 'normal' if active_alarm_total == 0 and abnormal_device_total == 0 else '' }}">
-        <span class="tag {{ 'ok' if active_alarm_total == 0 and abnormal_device_total == 0 else 'warning' }}">{{ '运行平稳' if active_alarm_total == 0 and abnormal_device_total == 0 else '需要关注' }}</span>
-        <span>当前存在 <strong>{{ active_alarm_total }}</strong> 条活动事件，<strong>{{ unacked_alarm_total }}</strong> 条未确认，<strong>{{ focus_device_total }}</strong> 台设备需要重点关注。</span>
-      </div>
+  <section class="summary-strip" aria-label="系统统计">
+    <div class="summary-item">
+      <div class="summary-label">设备总数</div>
+      <div class="summary-value">{{ device_total }}</div>
     </div>
-    <div class="overview-clock">
-      <div class="label">当前时间</div>
-      <div class="date" id="overview-date">--</div>
-      <div class="time" id="overview-time">--:--:--</div>
+    <div class="summary-item">
+      <div class="summary-label">在线设备数</div>
+      <div class="summary-value ok">{{ online_devices }}</div>
     </div>
-  </section>
-
-  <section class="status-strip">
-    <div class="status-card">
-      <div class="label">设备总数</div>
-      <div class="value">{{ device_total }}</div>
-      <div class="note">纳管设备总量</div>
+    <div class="summary-item">
+      <div class="summary-label">离线设备数</div>
+      <div class="summary-value danger">{{ offline_devices }}</div>
     </div>
-    <div class="status-card">
-      <div class="label">正常 / 异常设备</div>
-      <div class="value">{{ normal_device_total }} / {{ abnormal_device_total }}</div>
-      <div class="note">按当前状态综合判断</div>
+    <div class="summary-item">
+      <div class="summary-label">当前未恢复事件数</div>
+      <div class="summary-value warn">{{ active_alarm_total }}</div>
     </div>
-    <div class="status-card emphasis">
-      <div class="label">活动事件</div>
-      <div class="value">{{ active_alarm_total }}</div>
-      <div class="note">未恢复或仍在变化</div>
+    <div class="summary-item">
+      <div class="summary-label">严重事件数</div>
+      <div class="summary-value danger">{{ critical_event_total }}</div>
     </div>
-    <div class="status-card emphasis">
-      <div class="label">未确认事件</div>
-      <div class="value">{{ unacked_alarm_total }}</div>
-      <div class="note">优先处理对象</div>
-    </div>
-    <div class="status-card warning">
-      <div class="label">重点关注设备</div>
-      <div class="value">{{ focus_device_total }}</div>
-      <div class="note">存在异常或采集失败</div>
-    </div>
-    <div class="status-card">
-      <div class="label">今日新增事件</div>
-      <div class="value">{{ today_new_event_total }}</div>
-      <div class="note">按当日自然日统计</div>
+    <div class="summary-item">
+      <div class="summary-label">今日新增事件数</div>
+      <div class="summary-value">{{ today_new_event_total }}</div>
     </div>
   </section>
 
-  <section class="overview-grid">
-    <div class="section-panel">
-      <div class="section-panel-header">
-        <div>
-          <h3>重点设备列表</h3>
-          <div class="muted">优先展示当前存在异常、未确认事件或需要关注的设备。</div>
-        </div>
-        <a class="button secondary" href="{{ url_for('web.devices') }}">查看全部设备</a>
-      </div>
-      <div class="section-panel-body">
-        <div class="device-list">
-          {% for item in device_overviews %}
-            <article class="device-row">
-              <div class="device-bar {{ item.overview_status }}"></div>
-              <div>
-                <div class="device-name">{{ item.device.name }}</div>
-                <div class="device-sub">{{ item.device.ip }} / {{ item.profile_title }}</div>
-              </div>
-              <div class="device-metric">
-                <div class="label">当前状态</div>
-                <div class="value"><span class="tag {{ item.overview_status }}">{{ item.overview_status_label }}</span></div>
-              </div>
-              <div class="device-metric">
-                <div class="label">活动事件</div>
-                <div class="value">{{ item.active_alarm_count }}</div>
-              </div>
-              <div class="device-metric">
-                <div class="label">最高等级</div>
-                <div class="value">{{ item.highest_alarm_label if item.highest_alarm_severity else '正常' }}</div>
-              </div>
-              <div class="device-metric">
-                <div class="label">最近事件</div>
-                <div class="value">{{ item.recent_trap_at or '-' }}</div>
-              </div>
-              <div class="device-actions">
-                <a class="button" href="{{ url_for('web.device_detail', device_id=item.device.id) }}">查看详情</a>
-              </div>
-            </article>
-          {% else %}
-            <div class="soft-note">暂无设备数据。</div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
+  <div class="section-title">
+    <h3>设备列表</h3>
+    <a class="button secondary" href="{{ url_for('web.devices') }}">进入设备管理</a>
+  </div>
 
-    <div class="section-panel">
-      <div class="section-panel-header">
-        <div>
-          <h3>最新告警动态</h3>
-          <div class="muted">优先展示最近发生或状态发生变化的未恢复、未确认事件。</div>
-        </div>
-        <div class="event-tools">
-          <a class="button secondary" href="{{ url_for('web.alarms') }}">进入事件中心</a>
-          <a class="button secondary" href="{{ url_for('web.alarms', open_state='open') }}">查看活动事件</a>
-        </div>
-      </div>
-      <div class="section-panel-body">
-        <div class="event-list">
-          {% for item in recent_events %}
-            <article class="event-card {{ 'emphasis' if item.is_unacked or item.severity in ['critical', 'major'] else '' }}">
-              <div class="event-head">
-                <div>
-                  <div class="event-title">{{ item.alarm_description if item.alarm_description != '-' else item.alarm_id }}</div>
-                  <div class="event-meta">{{ item.device_name }} / {{ item.device_ip }}</div>
-                </div>
-                <div class="event-tags">
-                  <span class="tag {{ item.severity or '' }}">{{ item.severity_label }}</span>
-                  <span class="tag {{ 'warning' if item.is_open else 'close' }}">{{ item.state_label }}</span>
-                  <span class="tag {{ 'warning' if item.is_unacked else 'acknowledged' }}">{{ '未确认' if item.is_unacked else '已确认' }}</span>
-                </div>
+  <div class="table-scroll">
+    <table class="overview-table">
+      <thead>
+        <tr>
+          <th>设备名称</th>
+          <th>管理 IP</th>
+          <th>品牌 / 型号</th>
+          <th>在线状态</th>
+          <th>当前事件状态</th>
+          <th>未恢复事件数</th>
+          <th>最近事件时间</th>
+          <th>最近读取时间</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in device_overviews %}
+          <tr>
+            <td class="name">{{ item.device.name }}</td>
+            <td>{{ item.device.ip }}</td>
+            <td>{{ item.profile_title }}</td>
+            <td>
+              {% if item.device.last_poll_status in ['ok', 'partial'] %}
+                <span class="tag ok">在线</span>
+              {% elif item.device.last_poll_status == 'error' %}
+                <span class="tag error">离线</span>
+              {% else %}
+                <span class="tag unknown">未知</span>
+              {% endif %}
+            </td>
+            <td><span class="tag {{ item.overview_status }}">{{ item.overview_status_label }}</span></td>
+            <td>{{ item.active_alarm_count }}</td>
+            <td>{{ item.recent_trap_at or '-' }}</td>
+            <td>{{ item.recent_poll_at or '-' }}</td>
+            <td>
+              <div class="operation-cell">
+                <a class="button secondary" href="{{ url_for('web.device_detail', device_id=item.device.id) }}">查看设备状态</a>
               </div>
-              <div class="event-note">发生时间：{{ item.occurred_at }}{% if item.restored_at %} / 恢复时间：{{ item.restored_at }}{% endif %}</div>
-              <div class="event-note">状态：{{ item.status_label }} / 累计次数：{{ item.occurrence_count }}</div>
-              <div class="event-actions">
-                {% if item.device_detail_url %}
-                  <a class="button secondary" href="{{ item.device_detail_url }}">查看设备</a>
-                {% endif %}
-                {% if item.trap_detail_url %}
-                  <a class="button secondary" href="{{ item.trap_detail_url }}">查看 Trap</a>
-                {% endif %}
-              </div>
-            </article>
-          {% else %}
-            <div class="soft-note">暂无事件数据。</div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <script>
-    const weekdayLabels = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
-    function updateOverviewClock() {
-      const now = new Date();
-      const shanghai = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Shanghai" }));
-      const dateEl = document.getElementById("overview-date");
-      const timeEl = document.getElementById("overview-time");
-      const year = shanghai.getFullYear();
-      const month = String(shanghai.getMonth() + 1).padStart(2, "0");
-      const day = String(shanghai.getDate()).padStart(2, "0");
-      const hours = String(shanghai.getHours()).padStart(2, "0");
-      const minutes = String(shanghai.getMinutes()).padStart(2, "0");
-      const seconds = String(shanghai.getSeconds()).padStart(2, "0");
-      dateEl.textContent = `${year}-${month}-${day} ${weekdayLabels[shanghai.getDay()]}`;
-      timeEl.textContent = `${hours}:${minutes}:${seconds}`;
-    }
-    updateOverviewClock();
-    setInterval(updateOverviewClock, 1000);
-  </script>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="9">暂无设备数据。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 {% endblock %}

@@ -5,252 +5,428 @@
     .detail-toolbar {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
-      margin-bottom: 16px;
+      gap: 8px;
+      margin-bottom: 10px;
     }
-    .detail-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.9fr);
-      gap: 18px;
-      align-items: start;
-    }
-    .info-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-    .info-item {
-      padding: 12px 14px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: var(--panel-soft);
-    }
-    .info-item .label {
-      color: var(--muted);
-      font-size: 12px;
-    }
-    .info-item .value {
-      margin-top: 6px;
-      font-size: 15px;
-      font-weight: 700;
-      line-height: 1.5;
-      word-break: break-word;
-    }
-    .section-card {
-      display: grid;
-      gap: 14px;
-    }
-    .section-head {
+    .field-table { margin-bottom: 12px; }
+    .field-table th { width: 130px; }
+    .tabs {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
+      flex-wrap: wrap;
+      gap: 0;
+      border-bottom: 1px solid var(--line-strong);
+      margin-bottom: 10px;
     }
-    .section-head h3 {
-      margin: 0;
+    .tabs a {
+      min-height: 32px;
+      padding: 7px 14px;
+      border: 1px solid var(--line-strong);
+      border-bottom: 0;
+      background: #f5f6f8;
+      color: #33424f;
+      margin-right: 4px;
     }
-    .control-table {
-      min-width: 1240px;
-      table-layout: fixed;
-    }
-    .control-table th:nth-child(1) { width: 21%; }
-    .control-table th:nth-child(2) { width: 11%; }
-    .control-table th:nth-child(3) { width: 10%; }
-    .control-table th:nth-child(4) { width: 6%; }
-    .control-table th:nth-child(5) { width: 8%; }
-    .control-table th:nth-child(6) { width: 8%; }
-    .control-table th:nth-child(7) { width: 18%; }
-    .control-table th:nth-child(8) { width: 10%; }
-    .control-table th:nth-child(9) { width: 8%; }
-    .control-table td {
-      padding: 14px 10px;
-    }
-    .control-value {
+    .tabs a.active {
+      background: #fff;
+      color: var(--brand);
       font-weight: 700;
-      color: var(--text);
+      position: relative;
+      top: 1px;
     }
-    .control-input {
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .control-table { min-width: 1360px; table-layout: fixed; }
+    .control-table th:nth-child(1) { width: 150px; }
+    .control-table th:nth-child(2) { width: 180px; }
+    .control-table th:nth-child(3) { width: 110px; }
+    .control-table th:nth-child(4) { width: 110px; }
+    .control-table th:nth-child(5) { width: 60px; }
+    .control-table th:nth-child(6) { width: 80px; }
+    .control-table th:nth-child(7) { width: 190px; }
+    .control-table th:nth-child(8) { width: 70px; }
+    .control-table th:nth-child(9) { width: 135px; }
+    .control-table th:nth-child(10) { width: 90px; }
+    .control-value { font-weight: 700; }
+    .control-note { color: var(--muted); font-size: 12px; line-height: 1.55; word-break: break-all; }
+    .control-editor { display: grid; grid-template-columns: minmax(90px, 1fr) auto; gap: 6px; align-items: center; }
+    .control-editor input,
+    .control-editor select { min-height: 28px; }
+    .placeholder-table { min-width: 980px; }
+    .realtime-summary { width: 100%; margin-bottom: 10px; }
+    .realtime-summary th { width: 130px; }
+    .realtime-table { min-width: 980px; margin-bottom: 10px; }
+    .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+    .chart-panel { border: 1px solid var(--line-strong); background: #fff; padding: 10px; }
+    .chart-panel h3 { margin: 0 0 8px; font-size: 13px; }
+    .chart-panel canvas {
       width: 100%;
-      min-width: 120px;
-    }
-    .control-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-    .control-editor {
-      display: grid;
-      gap: 10px;
-      min-width: 0;
-    }
-    .control-toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-    .control-time {
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.6;
-      word-break: break-word;
-    }
-    .control-note {
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.6;
-    }
-    .event-list {
-      display: grid;
-      gap: 12px;
-    }
-    .event-item {
-      padding: 14px;
+      height: 220px;
+      display: block;
       border: 1px solid var(--line);
-      border-radius: 14px;
-      background: var(--panel-soft);
+      background: #fff;
     }
-    .event-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      margin-bottom: 8px;
+    .raw-json-panel {
+      border: 1px solid var(--line-strong);
+      background: #fff;
+      padding: 8px 10px;
     }
-    .event-title {
-      font-weight: 700;
+    .raw-json-panel summary { cursor: pointer; color: var(--brand); font-weight: 700; }
+    .raw-json-panel pre {
+      margin: 8px 0 0;
+      max-height: 260px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 12px;
       line-height: 1.5;
     }
-    .event-sub {
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.6;
+    .program-summary,
+    .program-port-table { width: 100%; margin-bottom: 10px; }
+    .program-summary th,
+    .program-port-table th { width: 120px; }
+    .program-filter {
+      grid-template-columns: 140px 140px 140px minmax(220px, 1fr) auto auto;
+      align-items: end;
     }
-    .status-empty {
-      padding: 24px 18px;
-      border: 1px dashed var(--line-strong);
-      border-radius: 14px;
-      background: var(--panel-soft);
-      color: var(--muted);
-      line-height: 1.8;
+    .program-table { min-width: 1560px; table-layout: fixed; }
+    .program-table th:nth-child(1) { width: 74px; }
+    .program-table th:nth-child(2) { width: 80px; }
+    .program-table th:nth-child(3) { width: 130px; }
+    .program-table th:nth-child(4) { width: 70px; }
+    .program-table th:nth-child(5),
+    .program-table th:nth-child(6),
+    .program-table th:nth-child(8) { width: 95px; }
+    .program-table th:nth-child(7),
+    .program-table th:nth-child(9) { width: 90px; }
+    .program-table th:nth-child(10),
+    .program-table th:nth-child(11),
+    .program-table th:nth-child(12) { width: 70px; }
+    .program-table th:nth-child(13) { width: 160px; }
+    .program-table th:nth-child(14) { width: 80px; }
+    .program-error { color: #c28a00; font-weight: 700; }
+    .program-pager {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 8px 0;
     }
-    @media (max-width: 1100px) {
-      .detail-grid {
-        grid-template-columns: 1fr;
-      }
+    .program-modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.28);
+      z-index: 1000;
     }
-    @media (max-width: 760px) {
-      .info-grid {
-        grid-template-columns: 1fr;
+    .program-modal.active { display: flex; }
+    .program-dialog {
+      width: min(860px, 92vw);
+      max-height: 86vh;
+      overflow: auto;
+      border: 1px solid var(--line-strong);
+      background: #fff;
+      padding: 12px;
+    }
+    .program-dialog-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .program-dialog h3 { margin: 0; font-size: 14px; }
+    .filter-line {
+      display: grid;
+      grid-template-columns: 150px 150px minmax(220px, 1fr) auto auto;
+      gap: 8px;
+      align-items: end;
+      margin-bottom: 10px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      background: var(--panel-alt);
+    }
+    .filter-line.program-filter {
+      grid-template-columns: 140px 140px 140px minmax(220px, 1fr) 72px 72px;
+    }
+    .operation-cell { display: flex; flex-wrap: wrap; gap: 6px; }
+    @media (max-width: 900px) {
+      .field-table,
+      .field-table tbody,
+      .field-table tr,
+      .field-table th,
+      .field-table td {
+        display: block;
+        width: 100%;
       }
-      .event-head,
-      .section-head {
-        flex-direction: column;
-        align-items: flex-start;
-      }
+      .filter-line,
+      .program-filter { grid-template-columns: 1fr; }
+      .chart-grid { grid-template-columns: 1fr; }
     }
   </style>
 
   <div class="detail-toolbar">
-    <a class="button secondary" href="{{ url_for('web.devices') }}">返回设备列表</a>
+    <a class="button secondary" href="{{ url_for('web.devices') }}">返回设备管理</a>
     <a class="button secondary" href="{{ url_for('web.edit_device', device_id=device.id) }}">编辑设备</a>
-    <a class="button secondary" href="{{ url_for('web.alarms', device_id=device.id) }}">查看该设备事件</a>
-    <a class="button secondary" href="{{ url_for('web.traps', device_id=device.id) }}">查看 Trap 日志</a>
+    <a class="button secondary" href="{{ url_for('web.alarms', device_id=device.id) }}">查看设备事件</a>
+    <a class="button secondary" href="{{ url_for('web.traps', device_id=device.id) }}">查看设备日志</a>
   </div>
 
-  <div class="detail-grid">
-    <section class="section-card">
-      <div class="card">
-        <h3 style="margin-top:0;">设备详情信息</h3>
-        <div class="info-grid">
-          <div class="info-item"><div class="label">设备名称</div><div class="value">{{ device_payload.name }}</div></div>
-          <div class="info-item"><div class="label">品牌 / 型号</div><div class="value">{{ device_payload.brand or '-' }} / {{ device_payload.model or '-' }}</div></div>
-          <div class="info-item"><div class="label">管理 IP</div><div class="value">{{ device_payload.ip }}</div></div>
-          <div class="info-item"><div class="label">SNMP 版本</div><div class="value">{{ device_payload.snmp_version }}</div></div>
-          <div class="info-item"><div class="label">读 community</div><div class="value">{{ device_payload.read_community_masked }}</div></div>
-          <div class="info-item"><div class="label">写 community</div><div class="value">{{ device_payload.write_community_masked }}</div></div>
-          <div class="info-item"><div class="label">在线状态</div><div class="value"><span class="tag {{ device_payload.last_poll_status or '' }}">{{ device_payload.last_poll_status|poll_status_label }}</span></div></div>
-          <div class="info-item"><div class="label">最近通信时间</div><div class="value">{{ device_payload.last_online_at }}</div></div>
-          <div class="info-item"><div class="label">最近读取时间</div><div class="value">{{ device_payload.last_polled_at }}</div></div>
-          <div class="info-item"><div class="label">最近结果说明</div><div class="value">{{ device_payload.last_poll_message or '-' }}</div></div>
-          <div class="info-item" style="grid-column:1 / -1;"><div class="label">备注</div><div class="value">{{ device_payload.notes or '-' }}</div></div>
-        </div>
-      </div>
+  <table class="field-table">
+    <tbody>
+      <tr>
+        <th>设备名称</th>
+        <td>{{ device_payload.name }}</td>
+        <th>管理 IP</th>
+        <td>{{ device_payload.ip }}</td>
+        <th>品牌 / 型号</th>
+        <td>{{ device_payload.brand or '-' }} / {{ device_payload.model or '-' }}</td>
+      </tr>
+      <tr>
+        <th>在线状态</th>
+        <td><span class="tag {{ device_payload.last_poll_status or 'unknown' }}">{{ device_payload.last_poll_status|poll_status_label }}</span></td>
+        <th>最近通信时间</th>
+        <td>{{ device_payload.last_online_at }}</td>
+        <th>当前事件状态</th>
+        <td>
+          <span class="tag {{ 'warning' if open_active_alarm_count else 'ok' }}">{{ '未恢复事件 ' ~ open_active_alarm_count if open_active_alarm_count else '正常' }}</span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
 
-      <div class="card">
-        <div class="section-head">
-          <h3>设备事件中心</h3>
-          <a class="button secondary" href="{{ url_for('web.alarms', device_id=device.id) }}">进入事件中心</a>
+  <nav class="tabs">
+    <a class="{{ 'active' if active_tab == 'realtime' else '' }}" href="{{ url_for('web.device_detail', device_id=device.id, tab='realtime') }}">设备实时状态</a>
+    <a class="{{ 'active' if active_tab == 'programs' else '' }}" href="{{ url_for('web.device_detail', device_id=device.id, tab='programs') }}">节目频道分析</a>
+    <a class="{{ 'active' if active_tab == 'snmp' else '' }}" href="{{ url_for('web.device_detail', device_id=device.id, tab='snmp') }}">SNMP 控制</a>
+    <a class="{{ 'active' if active_tab == 'events' else '' }}" href="{{ url_for('web.device_detail', device_id=device.id, tab='events') }}">设备事件中心</a>
+  </nav>
+
+  <section class="tab-panel {{ 'active' if active_tab == 'snmp' else '' }}">
+    <div class="toolbar">
+      <span class="muted" id="snmp-refresh-status">准备读取</span>
+      <button class="secondary" type="button" id="refresh-all-controls">刷新全部</button>
+      <span class="muted">模板控制项：{{ snmp_control_count }} 项</span>
+    </div>
+    <div class="table-scroll">
+      <table class="control-table">
+        <thead>
+          <tr>
+            <th>中文名称</th>
+            <th>OID / 标识</th>
+            <th>当前值</th>
+            <th>解释</th>
+            <th>单位</th>
+            <th>状态</th>
+            <th>控制值</th>
+            <th>操作</th>
+            <th>最近读取时间</th>
+            <th>读取结果</th>
+          </tr>
+        </thead>
+        <tbody id="snmp-control-body">
+          <tr><td colspan="10">正在读取 SNMP 控制项...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="tab-panel {{ 'active' if active_tab == 'realtime' else '' }}">
+    <table class="realtime-summary">
+      <tbody>
+        <tr>
+          <th>最近上报时间</th>
+          <td id="realtime-last-update">-</td>
+          <th>数据状态</th>
+          <td><span class="tag unknown" id="realtime-data-status">暂无数据</span></td>
+          <th>接口数量</th>
+          <td id="realtime-interface-count">0</td>
+        </tr>
+        <tr>
+          <th>总实时流量</th>
+          <td id="realtime-total-bandwidth">-</td>
+          <th>总节目数量</th>
+          <td id="realtime-total-programs">-</td>
+          <th>刷新周期</th>
+          <td>1 秒</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="table-scroll">
+      <table class="realtime-table">
+        <thead>
+          <tr>
+            <th>接口名称</th>
+            <th>端口</th>
+            <th>实时码流</th>
+            <th>节目数量</th>
+            <th>每秒包数</th>
+            <th>带宽 Mbps</th>
+            <th>最近上报时间</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody id="realtime-interface-body">
+          <tr><td colspan="8">暂无实时状态数据。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="chart-grid">
+      <section class="chart-panel">
+        <h3>接口实时流量趋势</h3>
+        <canvas id="bandwidth-chart" width="640" height="220"></canvas>
+      </section>
+      <section class="chart-panel">
+        <h3>接口节目数量趋势</h3>
+        <canvas id="programs-chart" width="640" height="220"></canvas>
+      </section>
+    </div>
+
+    <details class="raw-json-panel">
+      <summary>原始 JSON</summary>
+      <pre id="realtime-raw-json">暂无数据。</pre>
+    </details>
+  </section>
+
+  <section class="tab-panel {{ 'active' if active_tab == 'programs' else '' }}">
+    <table class="program-summary">
+      <tbody>
+        <tr>
+          <th>总节目数</th><td id="program-total">0</td>
+          <th>总码流</th><td id="program-bandwidth">-</td>
+          <th>ens7f0 状态</th><td><span class="tag unknown" id="program-ens7f0-status">暂无数据</span></td>
+          <th>ens7f1 状态</th><td><span class="tag unknown" id="program-ens7f1-status">暂无数据</span></td>
+        </tr>
+        <tr>
+          <th>最近更新时间</th><td id="program-last-update">-</td>
+          <th></th><td></td>
+          <th></th><td></td>
+          <th></th><td></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table class="program-port-table">
+      <thead>
+        <tr>
+          <th>接口名称</th>
+          <th>节目总数</th>
+          <th>已接收节目数</th>
+          <th>总码流</th>
+          <th>最近批次范围</th>
+          <th>最近上报耗时</th>
+          <th>数据状态</th>
+        </tr>
+      </thead>
+      <tbody id="program-port-body">
+        <tr><td colspan="7">暂无节目频道分析数据。</td></tr>
+      </tbody>
+    </table>
+
+    <div class="filter-line program-filter">
+      <label><div class="muted">端口</div><select id="program-interface"><option value="all">全部</option><option value="ens7f0">ens7f0</option><option value="ens7f1">ens7f1</option></select></label>
+      <label><div class="muted">视频格式</div><select id="program-video"><option value="all">全部</option><option value="H.264">H.264</option><option value="H.265">H.265</option><option value="MPEG-2V">MPEG-2V</option><option value="none">无视频</option></select></label>
+      <label><div class="muted">音频格式</div><select id="program-audio"><option value="all">全部</option><option value="AAC">AAC</option><option value="MPEG-1A">MPEG-1A</option><option value="MPEG-2A">MPEG-2A</option><option value="none">无音频</option></select></label>
+      <label><div class="muted">关键字</div><input id="program-keyword" type="text" placeholder="节目编号、组播地址"></label>
+      <button type="button" id="program-query">查询</button>
+      <button class="secondary" type="button" id="program-reset">重置</button>
+    </div>
+
+    <div class="table-scroll">
+      <table class="program-table">
+        <thead>
+          <tr>
+            <th>端口</th>
+            <th>节目编号</th>
+            <th>组播地址</th>
+            <th>UDP 端口</th>
+            <th>总码流</th>
+            <th>视频码流</th>
+            <th>视频格式</th>
+            <th>音频码流</th>
+            <th>音频格式</th>
+            <th>L1错误</th>
+            <th>L2错误</th>
+            <th>L3错误</th>
+            <th>最近更新时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="program-body">
+          <tr><td colspan="14">暂无节目频道分析数据。</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="program-pager">
+      <span class="muted" id="program-page-info">第 1 / 1 页，共 0 条</span>
+      <button class="secondary" type="button" id="program-prev">上一页</button>
+      <button class="secondary" type="button" id="program-next">下一页</button>
+    </div>
+
+    <div class="program-modal" id="program-modal">
+      <div class="program-dialog">
+        <div class="program-dialog-head">
+          <h3>节目详情</h3>
+          <button class="secondary" type="button" id="program-modal-close">关闭</button>
         </div>
-        <div class="event-list">
+        <div id="program-detail"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel {{ 'active' if active_tab == 'events' else '' }}">
+    <div class="toolbar">
+      <form method="post" action="{{ url_for('web.restore_device_events', device_id=device.id) }}" onsubmit="return confirm('确认恢复当前设备的全部未恢复事件？');">
+        <button type="submit">一键恢复</button>
+      </form>
+      <span class="muted">仅恢复当前设备未恢复事件。</span>
+    </div>
+    <div class="table-scroll">
+      <table class="placeholder-table">
+        <thead>
+          <tr>
+            <th>发生时间</th>
+            <th>恢复时间</th>
+            <th>设备名称</th>
+            <th>管理 IP</th>
+            <th>事件级别</th>
+            <th>事件名称</th>
+            <th>当前状态</th>
+            <th>事件来源</th>
+            <th>简要描述</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
           {% for item in recent_events %}
-            <div class="event-item">
-              <div class="event-head">
-                <div>
-                  <div class="event-title">{{ item.alarm_description if item.alarm_description != '-' else item.alarm_id }}</div>
-                  <div class="event-sub">{{ item.device_name }} / {{ item.alarm_obj or '未知对象' }}</div>
-                </div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                  <span class="tag {{ item.severity or '' }}">{{ item.severity_label }}</span>
-                  <span class="tag {{ item.status or '' }}">{{ item.status_label }}</span>
-                  <span class="tag {{ 'warning' if item.state_label == '未恢复' else 'ok' }}">{{ item.state_label }}</span>
-                </div>
-              </div>
-              <div class="event-sub">发生时间：{{ item.occurred_at }}</div>
-              <div class="event-sub">来源：{{ item.source }}{% if item.restored_at %} / 恢复时间：{{ item.restored_at }}{% endif %}</div>
-              <div class="event-sub">说明：{{ item.message or '-' }}</div>
-            </div>
-          {% else %}
-            <div class="soft-note" style="margin:0;">暂无该设备事件。</div>
-          {% endfor %}
-        </div>
-      </div>
-
-      <div class="card">
-        <h3 style="margin-top:0;">运行状态</h3>
-        <div class="status-empty">
-          当前阶段仅预留运行状态区域。后续将接入另一采集项目通过 Redis 提供的实时流量、节目套数和运行指标。
-        </div>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="section-head">
-        <div>
-          <h3 style="margin:0;">SNMP 控制</h3>
-          <div class="muted">打开页面时实时读取模板控制项，共 {{ snmp_control_count }} 项。读取时间按北京时间显示。</div>
-        </div>
-        <div class="control-actions">
-          <span class="muted" id="snmp-refresh-status">准备读取</span>
-          <button class="secondary" type="button" id="refresh-all-controls">刷新全部</button>
-        </div>
-      </div>
-      <div class="table-scroll">
-        <table class="control-table">
-          <thead>
             <tr>
-              <th>中文名称</th>
-              <th>当前值</th>
-              <th>解释</th>
-              <th>单位</th>
-              <th>访问权限</th>
-              <th>状态</th>
-              <th>控制</th>
-              <th>最后读取时间</th>
-              <th>读取结果</th>
+              <td>{{ item.occurred_at }}</td>
+              <td>{{ item.restored_at or '-' }}</td>
+              <td>{{ item.device_name }}</td>
+              <td>{{ item.device_ip }}</td>
+              <td><span class="tag {{ item.severity or '' }}">{{ item.severity_label }}</span></td>
+              <td>{{ item.alarm_description if item.alarm_description != '-' else (item.alarm_id or '-') }}</td>
+              <td><span class="tag {{ 'warning' if item.is_open else ('ok' if item.auto_recovered else 'close') }}">{{ item.state_label }}</span></td>
+              <td>{{ item.source }}</td>
+              <td>{{ item.message or '-' }}</td>
+              <td>
+                <div class="operation-cell">
+                  {% if item.trap_event_id is defined and item.trap_event_id %}
+                    <a class="button secondary" href="{{ url_for('web.trap_detail', trap_id=item.trap_event_id) }}">查看详情</a>
+                  {% else %}
+                    <a class="button secondary" href="{{ url_for('web.alarms', device_id=device.id, keyword=item.alarm_id or '') }}">查看详情</a>
+                  {% endif %}
+                </div>
+              </td>
             </tr>
-          </thead>
-          <tbody id="snmp-control-body">
-            <tr><td colspan="9">正在读取 SNMP 控制项...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-  </div>
+          {% else %}
+            <tr><td colspan="10">暂无该设备事件。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 
   <script>
     const deviceId = {{ device.id }};
+    const activeTab = "{{ active_tab }}";
     const controlBody = document.getElementById("snmp-control-body");
     const refreshStatus = document.getElementById("snmp-refresh-status");
 
@@ -263,9 +439,7 @@
     }
 
     function buildControlInput(item) {
-      if (!item.writable) {
-        return '<div class="control-note">当前项仅支持读取，不提供写入控件。</div>';
-      }
+      if (!item.writable) return "";
       if (item.value_type === "switch" || item.value_type === "enum") {
         const options = (item.enum_options || []).map((option) => {
           const selected = String(item.current_value_raw ?? "") === option.code ? "selected" : "";
@@ -278,68 +452,50 @@
     }
 
     function buildRow(item) {
-      const lastReadAt = item.last_read_at_display || window.formatBeijingTime(item.last_read_at);
+      const lastReadAt = item.last_read_at_display || item.last_read_at || "-";
       return `
         <tr data-control-row="${item.id}">
           <td>
             <div class="control-value">${escapeHtml(item.display_name)}</div>
-            <div class="control-note">${escapeHtml(item.description || item.oid_name || "")}</div>
+            <div class="control-note">${escapeHtml(item.description || "")}</div>
+          </td>
+          <td>
+            <div>${escapeHtml(item.request_oid || item.oid || "-")}</div>
+            <div class="control-note">${escapeHtml(item.oid_name || "-")}</div>
           </td>
           <td><span class="control-value">${escapeHtml(item.current_value_display || "-")}</span></td>
           <td>${escapeHtml(item.value_explained || "-")}</td>
           <td>${escapeHtml(item.unit || "-")}</td>
-          <td>${escapeHtml(item.access)}</td>
           <td><span class="tag ${escapeHtml(item.normal_status || "")}">${escapeHtml(item.normal_status || "-")}</span></td>
-          <td>
-            <div class="control-editor">
-              ${buildControlInput(item)}
-              <div class="control-toolbar">
-                <button class="secondary" type="button" data-read-control="${item.id}">刷新</button>
-                ${item.writable ? `<button type="button" data-set-control="${item.id}">写入</button>` : `<span class="muted">只读</span>`}
-              </div>
-            </div>
-          </td>
-          <td><div class="control-time">${escapeHtml(lastReadAt || "-")}</div></td>
-          <td>
-            <div><span class="tag ${escapeHtml(item.read_status || "")}">${escapeHtml(item.read_status || "-")}</span></div>
-            <div class="control-note">${escapeHtml(item.read_message || "-")}</div>
-          </td>
+          <td>${item.writable ? `<div class="control-editor">${buildControlInput(item)}</div>` : "-"}</td>
+          <td>${item.writable ? `<button class="secondary" type="button" data-set-control="${item.id}">写入</button>` : "-"}</td>
+          <td>${escapeHtml(lastReadAt)}</td>
+          <td><span class="tag ${escapeHtml(item.read_status || "")}" title="${escapeHtml(item.read_message || item.read_status || "-")}">${escapeHtml(item.read_status || "-")}</span></td>
         </tr>
       `;
     }
 
     function renderControls(items) {
+      if (!controlBody) return;
       if (!items.length) {
-        controlBody.innerHTML = '<tr><td colspan="9">当前模板未配置启用的 SNMP 控制项。</td></tr>';
+        controlBody.innerHTML = '<tr><td colspan="10">当前模板未配置启用的 SNMP 控制项。</td></tr>';
         return;
       }
       controlBody.innerHTML = items.map(buildRow).join("");
     }
 
     async function fetchControls() {
+      if (!controlBody) return;
       refreshStatus.textContent = "读取中";
       const response = await fetch(`/api/devices/${deviceId}/snmp-controls`, { credentials: "same-origin" });
       const payload = await response.json();
       if (!response.ok || !payload.ok) {
         refreshStatus.textContent = "读取失败";
-        controlBody.innerHTML = '<tr><td colspan="9">SNMP 控制项读取失败。</td></tr>';
+        controlBody.innerHTML = '<tr><td colspan="10">SNMP 控制项读取失败。</td></tr>';
         return;
       }
       renderControls(payload.controls || []);
       refreshStatus.textContent = "读取完成";
-    }
-
-    async function refreshOne(controlId) {
-      const response = await fetch(`/api/devices/${deviceId}/snmp-controls/${controlId}`, { credentials: "same-origin" });
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) {
-        alert(payload.message || "读取失败");
-        return;
-      }
-      const row = document.querySelector(`[data-control-row="${controlId}"]`);
-      if (row) {
-        row.outerHTML = buildRow(payload.control);
-      }
     }
 
     async function setOne(controlId) {
@@ -354,26 +510,315 @@
       const payload = await response.json();
       if (payload.verify) {
         const row = document.querySelector(`[data-control-row="${controlId}"]`);
-        if (row) {
-          row.outerHTML = buildRow(payload.verify);
-        }
+        if (row) row.outerHTML = buildRow(payload.verify);
       }
       alert(payload.message || (payload.ok ? "控制成功" : "控制失败"));
     }
 
-    document.getElementById("refresh-all-controls").addEventListener("click", fetchControls);
+    const refreshButton = document.getElementById("refresh-all-controls");
+    if (refreshButton) refreshButton.addEventListener("click", fetchControls);
     document.addEventListener("click", (event) => {
-      const readButton = event.target.closest("[data-read-control]");
-      if (readButton) {
-        refreshOne(readButton.dataset.readControl);
-        return;
-      }
       const setButton = event.target.closest("[data-set-control]");
-      if (setButton) {
-        setOne(setButton.dataset.setControl);
-      }
+      if (setButton) setOne(setButton.dataset.setControl);
     });
 
-    fetchControls();
+    if (activeTab === "snmp") {
+      fetchControls();
+    }
+
+    const realtimeLabels = {
+      normal: { text: "正常", className: "ok" },
+      stale: { text: "数据超时", className: "warning" },
+      empty: { text: "暂无数据", className: "unknown" }
+    };
+
+    function formatNumber(value) {
+      if (value === null || value === undefined || value === "") return "-";
+      const number = Number(value);
+      return Number.isFinite(number) ? number.toLocaleString("zh-CN") : String(value);
+    }
+
+    function formatMbps(value) {
+      const number = Number(value);
+      return Number.isFinite(number) ? number.toFixed(1) : "-";
+    }
+
+    function formatTotalBandwidth(mbps) {
+      if (!Number.isFinite(mbps)) return "-";
+      if (mbps >= 1000) return `${(mbps / 1000).toFixed(2)} Gbps`;
+      return `${mbps.toFixed(1)} Mbps`;
+    }
+
+    function setStatusTag(element, status) {
+      const item = realtimeLabels[status] || realtimeLabels.empty;
+      element.textContent = item.text;
+      element.className = `tag ${item.className}`;
+    }
+
+    function updateRealtimeSummary(payload) {
+      const status = payload.data_status || "empty";
+      const interfaces = Array.isArray(payload.interfaces) ? payload.interfaces : [];
+      const totalBandwidth = interfaces.reduce((sum, item) => sum + (Number(item.bandwidth_mbps) || 0), 0);
+      const totalPrograms = interfaces.reduce((sum, item) => sum + (Number(item.programs) || 0), 0);
+      document.getElementById("realtime-last-update").textContent = payload.last_update_time || "-";
+      setStatusTag(document.getElementById("realtime-data-status"), status);
+      document.getElementById("realtime-interface-count").textContent = interfaces.length;
+      document.getElementById("realtime-total-bandwidth").textContent = interfaces.length ? formatTotalBandwidth(totalBandwidth) : "-";
+      document.getElementById("realtime-total-programs").textContent = interfaces.length ? formatNumber(totalPrograms) : "-";
+    }
+
+    function updateRealtimeTable(payload) {
+      const body = document.getElementById("realtime-interface-body");
+      const status = payload.data_status || "empty";
+      const interfaces = Array.isArray(payload.interfaces) ? payload.interfaces : [];
+      if (!interfaces.length) {
+        body.innerHTML = '<tr><td colspan="8">暂无实时状态数据。</td></tr>';
+        return;
+      }
+      const item = realtimeLabels[status] || realtimeLabels.empty;
+      body.innerHTML = interfaces.map((row, index) => `
+        <tr>
+          <td>${escapeHtml(row.name || "-")}</td>
+          <td>端口 ${index + 1}</td>
+          <td><strong>${escapeHtml(row.bandwidth_str || formatTotalBandwidth(Number(row.bandwidth_mbps)))}</strong></td>
+          <td><strong>${escapeHtml(formatNumber(row.programs))}</strong></td>
+          <td>${escapeHtml(formatNumber(row.packets_per_sec))}</td>
+          <td>${escapeHtml(formatMbps(row.bandwidth_mbps))}</td>
+          <td>${escapeHtml(payload.last_update_time || "-")}</td>
+          <td><span class="tag ${item.className}">${item.text}</span></td>
+        </tr>
+      `).join("");
+    }
+
+    function getSampleValue(sample, name, field) {
+      return sample && sample[name] ? Number(sample[name][field]) : NaN;
+    }
+
+    function drawLineChart(canvasId, history, field, unitLabel) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, width, height);
+      const padding = { left: 48, right: 16, top: 14, bottom: 34 };
+      const plotW = width - padding.left - padding.right;
+      const plotH = height - padding.top - padding.bottom;
+      const rows = Array.isArray(history) ? history : [];
+      const series = [
+        { name: "ens7f0", color: "#1f6f9f", values: rows.map((row) => getSampleValue(row, "ens7f0", field)) },
+        { name: "ens7f1", color: "#2e8b57", values: rows.map((row) => getSampleValue(row, "ens7f1", field)) }
+      ];
+      const allValues = series.flatMap((item) => item.values).filter((value) => Number.isFinite(value));
+      ctx.strokeStyle = "#d7dde3";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(padding.left, padding.top, plotW, plotH);
+      ctx.fillStyle = "#7f8c8d";
+      ctx.font = "12px Microsoft YaHei, Arial";
+      if (!rows.length || !allValues.length) {
+        ctx.fillText("暂无趋势数据", padding.left + 12, padding.top + 28);
+        return;
+      }
+      const maxValue = Math.max(...allValues, 1);
+      const minValue = Math.min(...allValues, 0);
+      const range = Math.max(maxValue - minValue, 1);
+      for (let i = 1; i < 4; i += 1) {
+        const y = padding.top + (plotH / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(padding.left + plotW, y);
+        ctx.strokeStyle = "#edf1f4";
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#66727d";
+      ctx.fillText(`${maxValue.toFixed(field === "bandwidth_mbps" ? 1 : 0)} ${unitLabel}`, 4, padding.top + 8);
+      ctx.fillText(`${minValue.toFixed(field === "bandwidth_mbps" ? 1 : 0)}`, 18, padding.top + plotH);
+      series.forEach((line) => {
+        ctx.beginPath();
+        let started = false;
+        line.values.forEach((value, index) => {
+          if (!Number.isFinite(value)) return;
+          const x = padding.left + (rows.length === 1 ? 0 : (plotW * index) / (rows.length - 1));
+          const y = padding.top + plotH - ((value - minValue) / range) * plotH;
+          if (!started) {
+            ctx.moveTo(x, y);
+            started = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        });
+        ctx.strokeStyle = line.color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+      const firstLabel = rows[0]?.ts ? String(rows[0].ts).slice(11, 19) : "";
+      const lastLabel = rows[rows.length - 1]?.ts ? String(rows[rows.length - 1].ts).slice(11, 19) : "";
+      ctx.fillStyle = "#66727d";
+      ctx.fillText(firstLabel, padding.left, height - 10);
+      ctx.fillText(lastLabel, width - padding.right - 60, height - 10);
+      ctx.fillStyle = "#1f6f9f";
+      ctx.fillText("ens7f0", padding.left + 4, padding.top + 16);
+      ctx.fillStyle = "#2e8b57";
+      ctx.fillText("ens7f1", padding.left + 68, padding.top + 16);
+    }
+
+    async function fetchRealtimeStatus() {
+      const response = await fetch(`/api/devices/${deviceId}/realtime-status`, { credentials: "same-origin" });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) return;
+      updateRealtimeSummary(payload);
+      updateRealtimeTable(payload);
+      drawLineChart("bandwidth-chart", payload.history || [], "bandwidth_mbps", "Mbps");
+      drawLineChart("programs-chart", payload.history || [], "programs", "");
+      document.getElementById("realtime-raw-json").textContent = payload.raw_data ? JSON.stringify(payload.raw_data, null, 2) : "暂无数据。";
+    }
+
+    if (activeTab === "realtime") {
+      fetchRealtimeStatus();
+      window.setInterval(fetchRealtimeStatus, 1000);
+    }
+
+    const programState = { page: 1, pageSize: 50, sortBy: "default", sortOrder: "asc", rows: [] };
+
+    function bytesToMbps(value) {
+      const number = Number(value || 0);
+      if (!Number.isFinite(number) || number <= 0) return "--";
+      return `${(number / 1000000).toFixed(2)} Mbps`;
+    }
+
+    function programDataStatusTag(status) {
+      const labels = {
+        normal: { text: "正常", className: "ok" },
+        stale: { text: "数据超时", className: "warning" },
+        empty: { text: "暂无数据", className: "unknown" }
+      };
+      const item = labels[status] || labels.empty;
+      return `<span class="tag ${item.className}">${item.text}</span>`;
+    }
+
+    function updateProgramSummary(payload) {
+      const summary = payload.summary || {};
+      document.getElementById("program-total").textContent = formatNumber(summary.total_programs || 0);
+      document.getElementById("program-bandwidth").textContent = bytesToMbps(summary.total_bandwidth || 0);
+      document.getElementById("program-last-update").textContent = payload.last_update_time_display || "-";
+      ["ens7f0", "ens7f1"].forEach((name) => {
+        const cell = document.getElementById(`program-${name}-status`);
+        const data = summary[name] || {};
+        const tag = realtimeLabels[data.data_status] || realtimeLabels.empty;
+        cell.textContent = tag.text;
+        cell.className = `tag ${tag.className}`;
+      });
+      const body = document.getElementById("program-port-body");
+      body.innerHTML = ["ens7f0", "ens7f1"].map((name) => {
+        const item = summary[name] || {};
+        return `
+          <tr>
+            <td>${name}</td>
+            <td>${formatNumber(item.total || 0)}</td>
+            <td>${formatNumber(item.received_count || 0)}</td>
+            <td>${bytesToMbps(item.total_bandwidth || 0)}</td>
+            <td>${item.last_batch_start ?? "-"}-${item.last_batch_end ?? "-"} / ${item.total || "-"}</td>
+            <td>${item.last_duration ?? "-"} 秒</td>
+            <td>${programDataStatusTag(item.data_status)}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function renderProgramTable(payload) {
+      const body = document.getElementById("program-body");
+      const rows = payload.programs || [];
+      programState.rows = rows;
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="14">暂无符合条件的节目数据。</td></tr>';
+      } else {
+        body.innerHTML = rows.map((item, index) => `
+          <tr>
+            <td>${escapeHtml(item.interface)}</td>
+            <td>${escapeHtml(item.no)}</td>
+            <td>${escapeHtml(item.multicast_address || "-")}</td>
+            <td>${escapeHtml(item.udp_port || "-")}</td>
+            <td>${bytesToMbps(item.total_bw)}</td>
+            <td>${item.no_video ? "--" : bytesToMbps(item.video_bw)}</td>
+            <td>${escapeHtml(item.video_codec || "--")}</td>
+            <td>${item.no_audio ? "--" : bytesToMbps(item.audio_bw)}</td>
+            <td>${escapeHtml(item.audio_codec || "--")}</td>
+            <td class="${Number(item.l1 || 0) > 0 ? "program-error" : ""}">${formatNumber(item.l1 || 0)}</td>
+            <td class="${Number(item.l2 || 0) > 0 ? "program-error" : ""}">${formatNumber(item.l2 || 0)}</td>
+            <td class="${Number(item.l3 || 0) > 0 ? "program-error" : ""}">${formatNumber(item.l3 || 0)}</td>
+            <td>${escapeHtml(item.last_update_time_display || "-")}</td>
+            <td><button class="secondary" type="button" data-program-detail="${index}">查看详情</button></td>
+          </tr>
+        `).join("");
+      }
+      const pagination = payload.pagination || { page: 1, pages: 1, total: 0 };
+      programState.page = pagination.page || 1;
+      document.getElementById("program-page-info").textContent = `第 ${pagination.page || 1} / ${pagination.pages || 1} 页，共 ${formatNumber(pagination.total || 0)} 条`;
+    }
+
+    function programQueryParams() {
+      const params = new URLSearchParams();
+      params.set("interface", document.getElementById("program-interface").value);
+      params.set("video_codec", document.getElementById("program-video").value);
+      params.set("audio_codec", document.getElementById("program-audio").value);
+      params.set("keyword", document.getElementById("program-keyword").value.trim());
+      params.set("page", String(programState.page));
+      params.set("page_size", String(programState.pageSize));
+      params.set("sort_by", programState.sortBy);
+      params.set("sort_order", programState.sortOrder);
+      return params;
+    }
+
+    async function fetchProgramAnalysis() {
+      const response = await fetch(`/api/devices/${deviceId}/program-analysis?${programQueryParams().toString()}`, { credentials: "same-origin" });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) return;
+      updateProgramSummary(payload);
+      renderProgramTable(payload);
+    }
+
+    function showProgramDetail(index) {
+      const item = programState.rows[Number(index)];
+      if (!item) return;
+      document.getElementById("program-detail").innerHTML = `
+        <table class="field-table">
+          <tbody>
+            <tr><th>所属端口</th><td>${escapeHtml(item.interface)}</td><th>节目编号</th><td>${escapeHtml(item.no)}</td></tr>
+            <tr><th>组播地址</th><td>${escapeHtml(item.multicast_address || "-")}</td><th>UDP 端口</th><td>${escapeHtml(item.udp_port || "-")}</td></tr>
+            <tr><th>最近更新时间</th><td>${escapeHtml(item.last_update_time_display || "-")}</td><th></th><td></td></tr>
+            <tr><th>总码流</th><td>${bytesToMbps(item.total_bw)}</td><th>视频码流</th><td>${item.no_video ? "无视频" : bytesToMbps(item.video_bw)}</td></tr>
+            <tr><th>视频格式</th><td>${escapeHtml(item.video_codec || "--")}</td><th>音频码流</th><td>${item.no_audio ? "无音频" : bytesToMbps(item.audio_bw)}</td></tr>
+            <tr><th>音频格式</th><td>${escapeHtml(item.audio_codec || "--")}</td><th>L1 / L2 / L3</th><td>${formatNumber(item.l1 || 0)} / ${formatNumber(item.l2 || 0)} / ${formatNumber(item.l3 || 0)}</td></tr>
+          </tbody>
+        </table>
+        <details class="raw-json-panel" open><summary>原始 JSON</summary><pre>${escapeHtml(JSON.stringify(item.raw_data || item, null, 2))}</pre></details>
+      `;
+      document.getElementById("program-modal").classList.add("active");
+    }
+
+    const programQueryButton = document.getElementById("program-query");
+    if (programQueryButton) {
+      programQueryButton.addEventListener("click", () => { programState.page = 1; fetchProgramAnalysis(); });
+      document.getElementById("program-reset").addEventListener("click", () => {
+        ["program-interface", "program-video", "program-audio"].forEach((id) => { document.getElementById(id).value = "all"; });
+        document.getElementById("program-keyword").value = "";
+        programState.page = 1;
+        fetchProgramAnalysis();
+      });
+      document.getElementById("program-prev").addEventListener("click", () => { if (programState.page > 1) { programState.page -= 1; fetchProgramAnalysis(); } });
+      document.getElementById("program-next").addEventListener("click", () => { programState.page += 1; fetchProgramAnalysis(); });
+      document.getElementById("program-modal-close").addEventListener("click", () => document.getElementById("program-modal").classList.remove("active"));
+      document.getElementById("program-body").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-program-detail]");
+        if (button) showProgramDetail(button.dataset.programDetail);
+      });
+    }
+
+    if (activeTab === "programs") {
+      fetchProgramAnalysis();
+      window.setInterval(fetchProgramAnalysis, 2000);
+    }
   </script>
 {% endblock %}
